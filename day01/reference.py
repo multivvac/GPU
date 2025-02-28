@@ -1,6 +1,6 @@
-from utils import verbose_allequal
+from lib.utils import verbose_allequal
 import torch
-from task import input_t, output_t
+from day01.task import input_t, output_t
 
 
 def ref_kernel(data: input_t) -> output_t:
@@ -26,15 +26,21 @@ def generate_input(size: int, contention: float, seed: int) -> input_t:
     Returns:
         The input tensor with values in [0, 255]
     """
-    gen = torch.Generator(device='cuda')
+    gen = torch.Generator(device="cuda")
     gen.manual_seed(seed)
-    
+
     # Generate integer values between 0 and 256
-    data = torch.randint(0, 256, (size,), device='cuda', dtype=torch.uint8, generator=gen)
+    data = torch.randint(
+        0, 256, (size,), device="cuda", dtype=torch.uint8, generator=gen
+    )
 
     # make one value appear quite often, increasing the chance for atomic contention
-    evil_value = torch.randint(0, 256, (), device='cuda', dtype=torch.uint8, generator=gen)
-    evil_loc = torch.rand((size,), device='cuda', dtype=torch.float32, generator=gen) < (contention / 100.0)
+    evil_value = torch.randint(
+        0, 256, (), device="cuda", dtype=torch.uint8, generator=gen
+    )
+    evil_loc = torch.rand(
+        (size,), device="cuda", dtype=torch.float32, generator=gen
+    ) < (contention / 100.0)
     data[evil_loc] = evil_value
 
     return data.contiguous()
@@ -45,7 +51,9 @@ def check_implementation(data, output):
     reasons = verbose_allequal(output, expected)
 
     if len(reasons) > 0:
-        return "mismatch found! custom implementation doesn't match reference: " + " ".join(reasons)
+        return (
+            "mismatch found! custom implementation doesn't match reference: "
+            + " ".join(reasons)
+        )
 
-    return ''
-
+    return ""

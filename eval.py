@@ -6,17 +6,39 @@ import sys
 import math
 from pathlib import Path
 from typing import Any
+from tabulate import tabulate
 
 import torch.cuda
 
-from utils import set_seed
-try:
-    from task import TestSpec
-except ImportError:
-    TestSpec = dict
+from lib.utils import set_seed
+import importlib
 
-from submission import custom_kernel
-from reference import check_implementation, generate_input
+module = sys.argv[1]
+
+try:
+    task_module = importlib.import_module(f"{module}.task")
+    TestSpec = getattr(task_module, "TestSpec", dict)  # default to dict
+
+    submission_module = importlib.import_module(f"{module}.submission")
+    custom_kernel = getattr(submission_module, "custom_kernel", None)
+
+    reference_module = importlib.import_module(f"{module}.reference")
+    generate_input = getattr(reference_module, "generate_input", None)
+    check_implementation = getattr(reference_module, "check_implementation", None)
+
+    if not custom_kernel:
+        print("Error: `custom_kernel` not found in submission.py!")
+        sys.exit(1)
+    if not generate_input or not check_implementation:
+        print(
+            "Error: `generate_input` or `check_implementation` not found in reference.py!"
+        )
+        sys.exit(1)
+
+except ModuleNotFoundError as e:
+    print(f"Error: {e}")
+    sys.exit(1)
+
 
 WARMUP_RUNS = 10
 TIMED_RUNS = 100
@@ -24,17 +46,17 @@ TIMED_RUNS = 100
 
 class PopcornOutput:
     def __init__(self, fd: int):
-        self.file = os.fdopen(fd, 'w')
-    
+        self.file = os.fdopen(fd, "w")
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.file.close()
-    
+
     def print(self, *args, **kwargs):
         print(*args, **kwargs, file=self.file, flush=True)
-    
+
     def log(self, key, value):
         self.print(f"{key}: {value}")
 
@@ -92,6 +114,7 @@ class Stats:
     err: float
     best: float
     worst: float
+    name: str = ""
 
 
 def calculate_stats(durations: list[int]):
@@ -107,12 +130,42 @@ def calculate_stats(durations: list[int]):
     worst = max(durations)
 
     avg = total / runs
-    variance = sum(map(lambda x: (x - avg)**2, durations))
+    variance = sum(map(lambda x: (x - avg) ** 2, durations))
     std = math.sqrt(variance / (runs - 1))
     err = std / math.sqrt(runs)
 
-    return Stats(runs=runs, mean=avg, std=std, err=err, best=float(best),
-                 worst=float(worst))
+    return Stats(
+        runs=runs, mean=avg, std=std, err=err, best=float(best), worst=float(worst)
+    )
+
+
+def print_stats_table(stats_list: list[Stats]):
+    """
+    Prints a formatted table displaying statistics for each benchmark.
+
+    :param stats_list: List of Stats objects.
+    """
+
+    # Prepare table data
+    table_data = []
+    for stats in stats_list:
+        table_data.append(
+            [
+                stats.name,
+                stats.runs,
+                f"{stats.mean / 1000:.2f}",  # Convert ns to µs
+                f"{stats.best / 1000:.2f}",  # Convert ns to µs
+                f"{stats.worst / 1000:.2f}",  # Convert ns to µs
+                f"{stats.std:.2f}",
+                f"{stats.err:.2f}",
+            ]
+        )
+
+    # Define table headers
+    headers = ["Benchmark", "Runs", "Mean (µs)", "Best (µs)", "Worst (µs)", "Std Dev", "Error"]
+
+    # Print table using `tabulate`
+    print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 
 def run_testing(logger: PopcornOutput, tests: list[TestCase]):
@@ -148,7 +201,9 @@ def run_testing(logger: PopcornOutput, tests: list[TestCase]):
         return 112
 
 
-def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float) -> Stats | Any:
+def benchmark(
+    test: TestCase, recheck: bool, max_repeats: int, max_time_ns: float
+) -> Stats | Any:
     """
     For a particular test case, check correctness (if applicable) and grab runtime results.
 
@@ -187,11 +242,11 @@ def benchmark(test: TestCase, recheck: bool, max_repeats: int, max_time_ns: floa
                 return error
 
         del output
-        durations.append(end-start)
+        durations.append(end - start)
 
         if i > 1:
             stats = calculate_stats(durations)
-            if stats.err / stats.mean < 0.01 or stats.mean *  stats.runs > max_time_ns:
+            if stats.err / stats.mean < 0.01 or stats.mean * stats.runs > max_time_ns:
                 break
 
     return calculate_stats(durations)
@@ -208,35 +263,37 @@ def run_benchmarking(logger: PopcornOutput, tests: list[TestCase]):
     warm_up(tests[0])
     passed = True
     logger.log("benchmark-count", len(tests))
+    results = []
     for idx, test in enumerate(tests):
-        logger.log(f"benchmark.{idx}.spec", test.spec)
         result = benchmark(test, False, 100, 10e9)
         if isinstance(result, Stats):
-            for field in dataclasses.fields(Stats):
-                logger.log(f"benchmark.{idx}.{field.name}", getattr(result, field.name))
+            result.name = test.spec
+            results.append(result)
         else:
             passed = False
+
             logger.log(f"benchmark.{idx}.status", "fail")
             logger.log(f"benchmark.{idx}.error", result)
 
     if passed:
         logger.log("check", "pass")
-        return 0
+        print_stats_table(results)
+        return
     else:
         logger.log("check", "fail")
-        return 112
+        return
 
 
 def main():
-    fd = os.getenv("POPCORN_FD")
-    if not fd:
-        return 111
+    fd = os.getenv("POPCORN_FD") or 1
 
     if len(sys.argv) < 3:
-        return 2
+        sys.exit(1)
 
-    mode = sys.argv[1]
-    tests = get_test_cases(sys.argv[2])
+    mode = sys.argv[2]
+    tests = get_test_cases(
+        os.path.join(f"{module}", f"{mode if mode == 'test' else 'benchmark'}.txt")
+    )
 
     with PopcornOutput(int(fd)) as logger:
         seed = os.getenv("POPCORN_SEED")
@@ -248,26 +305,22 @@ def main():
 
         if mode == "benchmark":
             return run_benchmarking(logger, tests)
-        
+
         if mode == "leaderboard":
             warm_up(tests[0])
             result = benchmark(tests[-1], True, 100, 30e9)
             if isinstance(result, Stats):
                 logger.log("benchmark-count", 1)
-                logger.log(f"benchmark.0.spec", tests[-1].spec)
-                logger.log(f"benchmark.0.runs", result.runs)
-                logger.log(f"benchmark.0.mean", result.mean)
-                logger.log(f"benchmark.0.std", result.std)
-                logger.log(f"benchmark.0.err", result.err)
                 logger.log("check", "pass")
+                result.name = tests[-1].spec
+                print_stats_table([result])
             else:
                 logger.log("test-count", 1)
                 logger.log("test.0.status", "fail")
-                logger.log("test.0.error", str(result)) #TODO: Make sure result implements __str__?
-        
-        else:
-            # TODO: Implement script and profile mode
-            return 2
+                logger.log(
+                    "test.0.error", str(result)
+                )  # TODO: Make sure result implements __str__?
+
 
 
 if __name__ == "__main__":
