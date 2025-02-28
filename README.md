@@ -10,4 +10,4 @@ Implement a histogram kernel, first implement a naive version then move on to th
 
 ## Acknowledgements
 
-Some of the quiz and scripts are inspired by [reference-kernel's problems](https://github.com/gpu-mode/reference-kernels). Thanks for the amazing GPU MODE community!
+Some of the quizzes and scripts are inspired by the [reference-kernel's problems](https://github.com/gpu-mode/reference-kernels). Huge thanks to the amazing GPU MODE community!
