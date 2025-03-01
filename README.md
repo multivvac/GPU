@@ -2,6 +2,10 @@
 
 Hands-On GPU Learning - 100 Day Journey
 
+## Day 00
+
+Trying to migrate this codebase from python to c++, so that I can implement cuda directly in the codebase.
+
 ## Day 01
 
 Figure out how to run CUDA kernel in [GPU MODE's Leaderboard](https://gpu-mode.github.io/discord-cluster-manager/docs/intro)
