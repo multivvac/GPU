@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/multivac/Code/GPU/build",
+  "command": "/usr/bin/c++ -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE -I/home/multivac/Code/GPU/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include/torch/csrc/api/include -isystem /usr/local/cuda-12.8/include  -D_GLIBCXX_USE_CXX11_ABI=1 -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=1 -o CMakeFiles/cuda-challenge.dir/main.cpp.o -c /home/multivac/Code/GPU/main.cpp",
+  "file": "/home/multivac/Code/GPU/main.cpp",
+  "output": "CMakeFiles/cuda-challenge.dir/main.cpp.o"
+}
+]

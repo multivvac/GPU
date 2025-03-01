@@ -7,3 +7,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+third_party/
+build/
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+.cache/
