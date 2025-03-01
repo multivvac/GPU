@@ -1,0 +1,8 @@
+file(GLOB QUIZ_DIRS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/*)
+
+foreach(QUIZ ${QUIZ_DIRS})
+  if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${QUIZ})
+    add_subdirectory(${QUIZ})
+  endif()
+endforeach()
+
