@@ -1,26 +1,53 @@
-
+#include "solution.h"
 #include "utils/timer.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
 
-int main() {
-  auto timer = StopWatch<chrono_alias::ns>();
-  timer.start();
-  int size = 3;
-  int contention = 10;
-  auto gen = torch::make_generator<at::CUDAGeneratorImpl>();
-  auto data = torch::randint(0, 256, {size, 2}, gen,
+namespace histogram {
+torch::Tensor generate_input(int size, float contention, int seed) {
+
+  auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
+  auto data = torch::randint(0, NUM_BINS, {size}, gen,
                              torch::dtype(torch::kUInt8).device(torch::kCUDA));
   auto evilvalue = torch::randint(
-      0, 256, {}, gen, torch::dtype(torch::kUInt8).device(torch::kCUDA));
+      0, NUM_BINS, {}, gen, torch::dtype(torch::kUInt8).device(torch::kCUDA));
   auto evilloc =
-      torch::rand({size, 2}, gen,
+      torch::rand({size}, gen,
                   torch::dtype(torch::kFloat32).device(torch::kCUDA)) <
       (contention / 100.0);
   data.masked_fill_(evilloc, evilvalue);
-  std::cout << data << std::endl;
+  return data.contiguous();
+}
+
+torch::Tensor baseline(torch::Tensor &data) {
+  return torch::bincount(data, {}, NUM_BINS);
+}
+
+torch::Tensor solution(torch::Tensor &data) { return histogram_cuda(data); }
+} // namespace histogram
+
+int main(int argc, char *argv[]) {
+  if (argc < 4) {
+    std::cerr << "Usage: " << argv[0] << " <size> <contention> <seed>\n";
+  }
+  int size = std::stoi(argv[1]);
+  int contention = std::stoi(argv[2]);
+  int seed = std::stoi(argv[3]);
+
+  auto input = histogram::generate_input(size, contention, seed);
+
+  auto timer = StopWatch<chrono_alias::us>();
+  timer.start();
+  auto output = histogram::baseline(input);
   timer.stop();
 
-  std::cout << "duration: " << timer.getTime().count() << std::endl;
+  std::cout << "duration: " << timer.getTime().count() << " us." << std::endl;
+  timer.reset();
+
+  timer.start();
+  auto my_output = histogram::solution(input);
+  timer.stop();
+
+  std::cout << "duration: " << timer.getTime().count() << " us." << std::endl;
 }

@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(cuda-challenge)
+project(cuda-challenge LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CUDA_ARCHITECTURES 70)
 
 find_package(Torch REQUIRED)
 
+find_package(CUDAToolkit REQUIRED)
+
+enable_language(CUDA)
 
 add_executable(cuda-challenge src/main.cpp)
 target_link_libraries(cuda-challenge "${TORCH_LIBRARIES}")
@@ -17,8 +21,8 @@ add_subdirectory(quizzes)
 # According to https://github.com/pytorch/pytorch/issues/25457,
 # the DLLs need to be copied to avoid memory errors.
 if (MSVC)
-                   file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
-                   add_custom_command(TARGET cuda-challenge
+  file(GLOB TORCH_DLLS "${TORCH_INSTALL_PREFIX}/lib/*.dll")
+  add_custom_command(TARGET cuda-challenge
                      POST_BUILD
                      COMMAND ${CMAKE_COMMAND} -E copy_if_different
                      ${TORCH_DLLS}
