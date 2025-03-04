@@ -1,8 +1,26 @@
 [
 {
   "directory": "/home/multivac/Code/GPU/build",
-  "command": "/usr/bin/c++ -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE -I/home/multivac/Code/GPU/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include/torch/csrc/api/include -isystem /usr/local/cuda-12.8/include  -D_GLIBCXX_USE_CXX11_ABI=1 -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=1 -o CMakeFiles/cuda-challenge.dir/main.cpp.o -c /home/multivac/Code/GPU/main.cpp",
-  "file": "/home/multivac/Code/GPU/main.cpp",
-  "output": "CMakeFiles/cuda-challenge.dir/main.cpp.o"
+  "command": "/usr/bin/c++ -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE -I/home/multivac/Code/GPU/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include/torch/csrc/api/include -isystem /usr/local/cuda/include -D_GLIBCXX_USE_CXX11_ABI=1 -o CMakeFiles/utils.dir/src/utils/validate.cpp.o -c /home/multivac/Code/GPU/src/utils/validate.cpp",
+  "file": "/home/multivac/Code/GPU/src/utils/validate.cpp",
+  "output": "CMakeFiles/utils.dir/src/utils/validate.cpp.o"
+},
+{
+  "directory": "/home/multivac/Code/GPU/build",
+  "command": "/usr/bin/c++ -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE -I/home/multivac/Code/GPU/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include/torch/csrc/api/include -isystem /usr/local/cuda/include -std=gnu++17 -D_GLIBCXX_USE_CXX11_ABI=1 -o CMakeFiles/cuda-challenge.dir/src/main.cpp.o -c /home/multivac/Code/GPU/src/main.cpp",
+  "file": "/home/multivac/Code/GPU/src/main.cpp",
+  "output": "CMakeFiles/cuda-challenge.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/multivac/Code/GPU/build/quizzes/histogram",
+  "command": "/usr/bin/c++ -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE -I/home/multivac/Code/GPU/include -isystem /usr/local/cuda/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include -isystem /home/multivac/Code/GPU/third_party/libtorch/include/torch/csrc/api/include -D_GLIBCXX_USE_CXX11_ABI=1 -o CMakeFiles/histogram.dir/quiz.cpp.o -c /home/multivac/Code/GPU/quizzes/histogram/quiz.cpp",
+  "file": "/home/multivac/Code/GPU/quizzes/histogram/quiz.cpp",
+  "output": "quizzes/histogram/CMakeFiles/histogram.dir/quiz.cpp.o"
+},
+{
+  "directory": "/home/multivac/Code/GPU/build/quizzes/histogram",
+  "command": "/usr/local/cuda/bin/nvcc -forward-unknown-to-host-compiler -DUSE_C10D_GLOO -DUSE_C10D_NCCL -DUSE_DISTRIBUTED -DUSE_RPC -DUSE_TENSORPIPE --options-file CMakeFiles/histogram.dir/includes_CUDA.rsp  -DONNX_NAMESPACE=onnx_c2 -gencode arch=compute_70,code=sm_70 -Xcudafe --diag_suppress=cc_clobber_ignored,--diag_suppress=field_without_dll_interface,--diag_suppress=base_class_has_different_dll_interface,--diag_suppress=dll_interface_conflict_none_assumed,--diag_suppress=dll_interface_conflict_dllexport_assumed,--diag_suppress=bad_friend_decl --expt-relaxed-constexpr --expt-extended-lambda -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=1 -x cu -c /home/multivac/Code/GPU/quizzes/histogram/solution.cu -o CMakeFiles/histogram.dir/solution.cu.o",
+  "file": "/home/multivac/Code/GPU/quizzes/histogram/solution.cu",
+  "output": "quizzes/histogram/CMakeFiles/histogram.dir/solution.cu.o"
 }
 ]

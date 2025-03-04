@@ -1,5 +1,6 @@
 #include "solution.h"
 #include "utils/timer.hpp"
+#include "utils/validate.h"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
@@ -39,15 +40,18 @@ int main(int argc, char *argv[]) {
 
   auto timer = StopWatch<chrono_alias::us>();
   timer.start();
-  auto output = histogram::baseline(input);
+  auto my_output = histogram::solution(input);
   timer.stop();
+  std::cout << "[histogram]self implmentation duration: "
+            << timer.getTime().count() << " us." << std::endl;
 
-  std::cout << "duration: " << timer.getTime().count() << " us." << std::endl;
   timer.reset();
 
   timer.start();
-  auto my_output = histogram::solution(input);
+  auto output = histogram::baseline(input);
   timer.stop();
 
-  std::cout << "duration: " << timer.getTime().count() << " us." << std::endl;
+  std::cout << "[histogram]pytorch duration: " << timer.getTime().count()
+            << " us." << std::endl;
+  verbose_allclose(input, input, 0.0, 0.0, 1);
 }
