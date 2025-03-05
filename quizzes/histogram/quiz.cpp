@@ -1,6 +1,6 @@
 #include "solution.h"
 #include "utils/timer.hpp"
-#include "utils/validate.h"
+#include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
@@ -38,6 +38,9 @@ int main(int argc, char *argv[]) {
   int seed = std::stoi(argv[3]);
 
   auto input = histogram::generate_input(size, contention, seed);
+
+  // warmup
+
   auto timer = StopWatch<chrono_alias::us>();
   timer.start();
   auto my_output = histogram::solution(input);
