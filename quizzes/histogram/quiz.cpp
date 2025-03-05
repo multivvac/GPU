@@ -4,6 +4,7 @@
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
+#include <torch/types.h>
 
 namespace histogram {
 torch::Tensor generate_input(int size, float contention, int seed) {
@@ -22,7 +23,7 @@ torch::Tensor generate_input(int size, float contention, int seed) {
 }
 
 torch::Tensor baseline(torch::Tensor &data) {
-  return torch::bincount(data, {}, NUM_BINS);
+  return torch::bincount(data, {}, NUM_BINS).to(torch::kUInt32);
 }
 
 torch::Tensor solution(torch::Tensor &data) { return histogram_cuda(data); }
@@ -37,13 +38,12 @@ int main(int argc, char *argv[]) {
   int seed = std::stoi(argv[3]);
 
   auto input = histogram::generate_input(size, contention, seed);
-
   auto timer = StopWatch<chrono_alias::us>();
   timer.start();
   auto my_output = histogram::solution(input);
   timer.stop();
-  std::cout << "[histogram]self implmentation duration: "
-            << timer.getTime().count() << " us." << std::endl;
+
+  auto selftime = timer.getTime().count();
 
   timer.reset();
 
@@ -51,7 +51,18 @@ int main(int argc, char *argv[]) {
   auto output = histogram::baseline(input);
   timer.stop();
 
-  std::cout << "[histogram]pytorch duration: " << timer.getTime().count()
-            << " us." << std::endl;
-  verbose_allclose(input, input, 0.0, 0.0, 1);
+  auto baselinetime = timer.getTime().count();
+
+  auto errors = verbose_allequal(my_output, output);
+
+  if (errors.size() > 0) {
+    for (auto &error : errors) {
+      std::cout << error << "\n";
+    }
+  } else {
+    std::cout << "[histogram]self implmentation duration: " << selftime
+              << " us." << std::endl;
+    std::cout << "[histogram]baseline duration: " << baselinetime << " us."
+              << std::endl;
+  }
 }

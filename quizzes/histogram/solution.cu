@@ -1,8 +1,10 @@
 #include "solution.h"
 #include <cstdint>
-#include <thread>
 #include <torch/torch.h>
-__global__ void histogram_kernel(const uint8_t *__restrict__ data,
+#include <torch/types.h>
+
+template <typename scalar_t>
+__global__ void histogram_kernel(const scalar_t *__restrict__ data,
                                  unsigned int *__restrict__ histo, int N) {
 
   __shared__ unsigned int localbins[NUM_BINS];
@@ -16,7 +18,8 @@ __global__ void histogram_kernel(const uint8_t *__restrict__ data,
   __syncthreads();
 
   if (idx < N) {
-    atomicAdd(&(localbins[data[idx]]), 1);
+    unsigned int bin = static_cast<unsigned int>(data[idx]);
+    atomicAdd(&(localbins[bin]), 1);
   }
   __syncthreads();
 
@@ -32,7 +35,9 @@ torch::Tensor histogram_cuda(torch::Tensor &data) {
       {NUM_BINS}, torch::dtype(torch::kUInt32).device(torch::kCUDA));
   const int blocks = (N - 1 + THREAD_PER_BLOCK) / THREAD_PER_BLOCK;
 
-  histogram_kernel<<<blocks, THREAD_PER_BLOCK>>>(
-      data.const_data_ptr<uint8_t>(), histogram.data_ptr<unsigned int>(), N);
+  AT_DISPATCH_ALL_TYPES(data.scalar_type(), "histogram_cuda", [&] {
+    histogram_kernel<<<blocks, THREAD_PER_BLOCK>>>(
+        data.const_data_ptr<scalar_t>(), histogram.data_ptr<unsigned int>(), N);
+  });
   return histogram;
 }

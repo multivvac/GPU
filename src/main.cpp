@@ -1,5 +1,4 @@
 #include "utils/timer.hpp"
-#include "utils/validate.h"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
@@ -21,7 +20,6 @@ int main() {
   data.masked_fill_(evilloc, evilvalue);
   std::cout << data.contiguous() << std::endl;
   timer.stop();
-  verbose_allclose(data, data, 0.0, 0.0, 1);
 
   std::cout << "duration: " << timer.getTime().count() << std::endl;
 }
