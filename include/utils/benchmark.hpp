@@ -11,7 +11,7 @@ double benchmark(Func &&func, int warmup_runs = 2, int actual_runs = 5,
   for (size_t i = 0; i < warmup_runs; i++) {
     func(std::forward<Args>(args)...);
   }
-  auto timer = StopWatch<chrono_alias::ms>();
+  auto timer = StopWatch<chrono_alias::ns>();
   for (size_t i = 0; i < actual_runs; i++) {
     timer.start();
     func(std::forward<Args>(args)...);

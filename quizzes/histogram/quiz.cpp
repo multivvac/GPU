@@ -8,7 +8,7 @@
 #include <torch/types.h>
 
 namespace histogram {
-torch::Tensor generate_input(int size, float contention, int seed) {
+torch::Tensor generate_input(long size, float contention, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
   auto data = torch::randint(0, NUM_BINS, {size}, gen,
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
   if (argc < 4) {
     std::cerr << "Usage: " << argv[0] << " <size> <contention> <seed>\n";
   }
-  int size = std::stoi(argv[1]);
+  long size = std::stoll(argv[1]);
   int contention = std::stoi(argv[2]);
   int seed = std::stoi(argv[3]);
 
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   auto output = histogram::baseline(input);
   auto my_output = histogram::solution(input);
 
-  auto errors = verbose_allequal(my_output, input);
+  auto errors = verbose_allequal(my_output, output);
 
   if (errors.size() > 0) {
     for (auto &error : errors) {
@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
   auto selftime = benchmark([&]() { histogram::solution(input); });
   auto baselinetime = benchmark([&]() { histogram::baseline(input); });
 
-  std::cout << "[histogram]self implmentation duration: " << selftime << " us."
+  std::cout << "[histogram]self implmentation duration: " << selftime << " ns."
             << std::endl;
-  std::cout << "[histogram]baseline duration: " << baselinetime << " us."
+  std::cout << "[histogram]baseline duration: " << baselinetime << " ns."
             << std::endl;
 }
