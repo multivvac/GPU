@@ -1,7 +1,8 @@
 #include "solution.h"
-#include "utils/timer.hpp"
+#include "utils/benchmark.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
+#include <cstdlib>
 #include <iostream>
 #include <torch/torch.h>
 #include <torch/types.h>
@@ -38,34 +39,24 @@ int main(int argc, char *argv[]) {
   int seed = std::stoi(argv[3]);
 
   auto input = histogram::generate_input(size, contention, seed);
-
-  // warmup
-
-  auto timer = StopWatch<chrono_alias::us>();
-  timer.start();
-  auto my_output = histogram::solution(input);
-  timer.stop();
-
-  auto selftime = timer.getTime().count();
-
-  timer.reset();
-
-  timer.start();
   auto output = histogram::baseline(input);
-  timer.stop();
+  auto my_output = histogram::solution(input);
 
-  auto baselinetime = timer.getTime().count();
-
-  auto errors = verbose_allequal(my_output, output);
+  auto errors = verbose_allequal(my_output, input);
 
   if (errors.size() > 0) {
     for (auto &error : errors) {
       std::cout << error << "\n";
     }
-  } else {
-    std::cout << "[histogram]self implmentation duration: " << selftime
-              << " us." << std::endl;
-    std::cout << "[histogram]baseline duration: " << baselinetime << " us."
-              << std::endl;
+    return EXIT_FAILURE;
   }
+  // benchmark
+
+  auto selftime = benchmark([&]() { histogram::solution(input); });
+  auto baselinetime = benchmark([&]() { histogram::baseline(input); });
+
+  std::cout << "[histogram]self implmentation duration: " << selftime << " us."
+            << std::endl;
+  std::cout << "[histogram]baseline duration: " << baselinetime << " us."
+            << std::endl;
 }
