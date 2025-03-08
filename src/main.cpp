@@ -1,4 +1,5 @@
 #include "utils/timer.hpp"
+#include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/torch.h>
@@ -21,5 +22,6 @@ int main() {
   std::cout << data.contiguous() << std::endl;
   timer.stop();
 
+  verbose_allclose(data, data, 0.0, 0.0);
   std::cout << "duration: " << timer.getTime().count() << std::endl;
 }

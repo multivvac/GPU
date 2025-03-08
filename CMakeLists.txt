@@ -19,25 +19,6 @@ find_package(CUDAToolkit REQUIRED)
 message(STATUS "TORCH_LIBRARIES = ${TORCH_LIBRARIES}")
 message(STATUS "TORCH_INCLUDE_DIRS = ${TORCH_INCLUDE_DIRS}")
 
-#  Create a library from your custom .cpp files.
-#  We'll call it "utils"; it contains validate.cpp, etc.
-add_library(utils STATIC
-    src/utils/validate.cpp
-)
-
-#  Make sure "utils" library can see headers in include/.
-target_include_directories(utils
-    PUBLIC
-    ${CMAKE_SOURCE_DIR}/include
-    ${TORCH_INCLUDE_DIRS}
-)
-
-#  Link Torch + CUDA into utils library
-target_link_libraries(utils
-    PUBLIC
-    ${TORCH_LIBRARIES}
-    ${CUDA_LIBRARIES}
-)
 
 add_executable(cuda-challenge
     src/main.cpp
@@ -50,10 +31,11 @@ target_include_directories(cuda-challenge
     ${TORCH_INCLUDE_DIRS}
 )
 
-# Link main executable against the utils library (and thus Torch).
+
 target_link_libraries(cuda-challenge
     PRIVATE
-    utils
+    ${CUDA_LIBRARIES}
+    ${TORCH_LIBRARIES}
 )
 
 # Use C++17

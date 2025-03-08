@@ -1,5 +1,4 @@
 #include "solution.h"
-#include <cstdint>
 #include <torch/torch.h>
 #include <torch/types.h>
 
