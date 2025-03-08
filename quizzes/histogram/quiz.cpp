@@ -28,6 +28,7 @@ torch::Tensor baseline(torch::Tensor &data) {
 }
 
 torch::Tensor solution(torch::Tensor &data) { return histogram_cuda(data); }
+torch::Tensor solution_vec(torch::Tensor &data) { return histogram_vec_cuda(data); }
 } // namespace histogram
 
 int main(int argc, char *argv[]) {
@@ -41,11 +42,22 @@ int main(int argc, char *argv[]) {
   auto input = histogram::generate_input(size, contention, seed);
   auto output = histogram::baseline(input);
   auto my_output = histogram::solution(input);
+  auto my_vec_output = histogram::solution_vec(input);
 
   auto errors = verbose_allequal(my_output, output);
 
   if (errors.size() > 0) {
+    std::cout << "found " << errors.size() << " errors in shared memory kernel\n"; 
     for (auto &error : errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+  auto errors_vec = verbose_allequal(my_vec_output, output);
+
+  if (errors_vec.size() > 0) {
+    std::cout << "found " << errors_vec.size() << " errors in vectorized kernel\n"; 
+    for (auto &error : errors_vec) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
@@ -53,9 +65,12 @@ int main(int argc, char *argv[]) {
   // benchmark
 
   auto selftime = benchmark([&]() { histogram::solution(input); });
+  auto selfvectime = benchmark([&]() { histogram::solution_vec(input); });
   auto baselinetime = benchmark([&]() { histogram::baseline(input); });
 
-  std::cout << "[histogram]self implmentation duration: " << selftime << " ns."
+  std::cout << "[histogram]self shard memory implmentation duration: " << selftime << " ns."
+            << std::endl;
+  std::cout << "[histogram]self vectorized implmentation duration: " << selfvectime << " ns."
             << std::endl;
   std::cout << "[histogram]baseline duration: " << baselinetime << " ns."
             << std::endl;
