@@ -4,5 +4,6 @@
 #include <torch/torch.h>
 #define BLOCKDIM 32
 torch::Tensor matrix_transpose_cuda(torch::Tensor &data);
+torch::Tensor matrix_transpose_coalesed_cuda(torch::Tensor &data);
 
 #endif
