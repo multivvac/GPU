@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include <cstddef>
 #include <torch/torch.h>
 #include <torch/types.h>
 
@@ -16,9 +17,9 @@ __global__ void mat_transpose_naive(const scalar_t *__restrict__ idata,
 }
 
 template <typename scalar_t>
-__global__ void mat_transpose_coalesed(const scalar_t *__restrict__ idata,
-                                       float *__restrict__ odata, size_t M,
-                                       size_t N) {
+__global__ void mat_transpose_coalesced(const scalar_t *__restrict__ idata,
+                                        float *__restrict__ odata, size_t M,
+                                        size_t N) {
 
   __shared__ scalar_t tile[BLOCKDIM * BLOCKDIM];
   size_t x = BLOCKDIM * blockIdx.x + threadIdx.x;
@@ -32,6 +33,27 @@ __global__ void mat_transpose_coalesed(const scalar_t *__restrict__ idata,
   y = BLOCKDIM * blockIdx.x + threadIdx.y;
   if (x < N && y < M) {
     odata[N * y + x] = tile[threadIdx.x * BLOCKDIM + threadIdx.y];
+  }
+}
+
+template <typename scalar_t>
+__global__ void
+mat_transpose_coalesced_coarse(const scalar_t *__restrict__ idata,
+                               float *__restrict__ odata, size_t M, size_t N) {
+
+  __shared__ scalar_t tile[BLOCKDIM * BLOCKDIM];
+  size_t x = BLOCKDIM * blockIdx.x + threadIdx.x;
+  size_t y = BLOCKDIM * blockIdx.y + threadIdx.y;
+
+  for (size_t i = 0; i < BLOCKDIM; i += blockDim.y) {
+    tile[(threadIdx.y + i) * BLOCKDIM + threadIdx.x] = idata[(y + i) * N + x];
+  }
+  __syncthreads();
+
+  x = BLOCKDIM * blockIdx.y + threadIdx.x;
+  y = BLOCKDIM * blockIdx.x + threadIdx.y;
+  for (size_t i = 0; i < BLOCKDIM; i += blockDim.y) {
+    odata[N * (y + i) + x] = tile[threadIdx.x * BLOCKDIM + (threadIdx.y + i)];
   }
 }
 torch::Tensor matrix_transpose_cuda(torch::Tensor &data) {
@@ -50,7 +72,7 @@ torch::Tensor matrix_transpose_cuda(torch::Tensor &data) {
   cudaDeviceSynchronize();
   return output;
 }
-torch::Tensor matrix_transpose_coalesed_cuda(torch::Tensor &data) {
+torch::Tensor matrix_transpose_coalesced_cuda(torch::Tensor &data) {
   auto M = data.size(0);
   auto N = data.size(1);
   auto output =
@@ -59,10 +81,27 @@ torch::Tensor matrix_transpose_coalesed_cuda(torch::Tensor &data) {
                      (M + BLOCKDIM - 1) / BLOCKDIM);
   const dim3 nthreads(BLOCKDIM, BLOCKDIM);
 
-  AT_DISPATCH_ALL_TYPES(data.scalar_type(), "mat_transpose_coalesed", [&] {
-    mat_transpose_coalesed<<<nblocks, nthreads>>>(
+  AT_DISPATCH_ALL_TYPES(data.scalar_type(), "mat_transpose_coalesced", [&] {
+    mat_transpose_coalesced<<<nblocks, nthreads>>>(
         data.const_data_ptr<scalar_t>(), output.data_ptr<float>(), M, N);
   });
+  cudaDeviceSynchronize();
+  return output;
+}
+torch::Tensor matrix_transpose_coalesced_coarse_cuda(torch::Tensor &data) {
+  auto M = data.size(0);
+  auto N = data.size(1);
+  auto output =
+      torch::zeros({N, M}, torch::dtype(torch::kFloat32).device(torch::kCUDA));
+  const dim3 nblocks((N + BLOCKDIM - 1) / BLOCKDIM,
+                     (M + BLOCKDIM - 1) / BLOCKDIM);
+  const dim3 nthreads(BLOCKDIM, BLOCKDIM / COARSE);
+
+  AT_DISPATCH_ALL_TYPES(
+      data.scalar_type(), "mat_transpose_coalesced_coarse", [&] {
+        mat_transpose_coalesced_coarse<<<nblocks, nthreads>>>(
+            data.const_data_ptr<scalar_t>(), output.data_ptr<float>(), M, N);
+      });
   cudaDeviceSynchronize();
   return output;
 }
