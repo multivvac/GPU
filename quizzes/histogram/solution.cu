@@ -2,7 +2,7 @@
 #include <torch/torch.h>
 #include <torch/types.h>
 
-#define COARSE 36
+#define COARSE 4
 
 template <typename scalar_t>
 __global__ void histogram_kernel(const scalar_t *__restrict__ data,
@@ -45,8 +45,7 @@ __global__ void histogram_coarse_kernel(const scalar_t *__restrict__ data,
 
   __syncthreads();
 
-  for (unsigned long long i = idx * COARSE; i < min((idx + 1) * COARSE, N);
-       i++) {
+  for (unsigned long long i = idx; i < N; i += blockDim.x * gridDim.x) {
     unsigned int bin = static_cast<unsigned int>(data[i]);
     atomicAdd_block(&(localbins[bin]), 1);
   }
