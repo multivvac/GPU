@@ -28,8 +28,15 @@ torch::Tensor baseline(torch::Tensor &data) {
 }
 
 torch::Tensor solution(torch::Tensor &data) { return histogram_cuda(data); }
-torch::Tensor solution_coarse(torch::Tensor &data) { return histogram_coarse_cuda(data); }
-torch::Tensor solution_vec(torch::Tensor &data) { return histogram_vec_cuda(data); }
+torch::Tensor solution_coarse(torch::Tensor &data) {
+  return histogram_coarse_cuda(data);
+}
+torch::Tensor solution_coarse_contiguous(torch::Tensor &data) {
+  return histogram_coarse_contiguous_cuda(data);
+}
+torch::Tensor solution_vec(torch::Tensor &data) {
+  return histogram_vec_cuda(data);
+}
 } // namespace histogram
 
 int main(int argc, char *argv[]) {
@@ -45,11 +52,13 @@ int main(int argc, char *argv[]) {
   auto my_output = histogram::solution(input);
   auto my_coarse_output = histogram::solution_coarse(input);
   auto my_vec_output = histogram::solution_vec(input);
+  auto my_coarse_contiguous_output =
+      histogram::solution_coarse_contiguous(input);
 
   auto errors = verbose_allequal(my_output, output);
 
   if (errors.size() > 0) {
-    std::cout << "found errors in shared memory kernel:\n"; 
+    std::cout << "found errors in shared memory kernel:\n";
     for (auto &error : errors) {
       std::cout << error << "\n";
     }
@@ -58,8 +67,18 @@ int main(int argc, char *argv[]) {
   auto errors_coarse = verbose_allequal(my_coarse_output, output);
 
   if (errors_coarse.size() > 0) {
-    std::cout << "found errors in coarsening kernel:\n"; 
+    std::cout << "found errors in coarsening kernel:\n";
     for (auto &error : errors_coarse) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+
+  auto errors_coarse_contiguous =
+      verbose_allequal(my_coarse_contiguous_output, output);
+  if (errors_coarse_contiguous.size() > 0) {
+    std::cout << "found errors in coarsening contiguous kernel:\n";
+    for (auto &error : errors_coarse_contiguous) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
@@ -67,7 +86,7 @@ int main(int argc, char *argv[]) {
   auto errors_vec = verbose_allequal(my_vec_output, output);
 
   if (errors_vec.size() > 0) {
-    std::cout << "found errors in vectorized kernel:\n"; 
+    std::cout << "found errors in vectorized kernel:\n";
     for (auto &error : errors_vec) {
       std::cout << error << "\n";
     }
@@ -77,15 +96,21 @@ int main(int argc, char *argv[]) {
 
   auto selftime = benchmark([&]() { histogram::solution(input); });
   auto selfcoarsetime = benchmark([&]() { histogram::solution_coarse(input); });
+  auto self_coarse_contiguous_time =
+      benchmark([&]() { histogram::solution_coarse_contiguous(input); });
   auto selfvectime = benchmark([&]() { histogram::solution_vec(input); });
   auto baselinetime = benchmark([&]() { histogram::baseline(input); });
 
-  std::cout << "[histogram] Privatization implmentation duration: " << selftime << " ns."
-            << std::endl;
-  std::cout << "[histogram] Coarsening + Privatization implmentation duration: " << selfcoarsetime << " ns."
-            << std::endl;
-  std::cout << "[histogram] Vectorized + Privatization implmentation duration: " << selfvectime << " ns."
-            << std::endl;
-  std::cout << "[histogram] Pytorch implmentation duration: " << baselinetime << " ns."
-            << std::endl;
+  std::cout << "[histogram] Privatization implmentation duration: " << selftime
+            << " ns." << std::endl;
+  std::cout << "[histogram] Coarsening + Privatization interleaved "
+               "implmentation duration: "
+            << selfcoarsetime << " ns." << std::endl;
+  std::cout << "[histogram] Coarsening + Privatization contiguous "
+               "implmentation duration: "
+            << self_coarse_contiguous_time << " ns." << std::endl;
+  std::cout << "[histogram] Vectorized + Privatization implmentation duration: "
+            << selfvectime << " ns." << std::endl;
+  std::cout << "[histogram] Pytorch implmentation duration: " << baselinetime
+            << " ns." << std::endl;
 }
