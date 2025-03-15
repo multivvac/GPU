@@ -31,6 +31,9 @@ torch::Tensor coalesced_solution(torch::Tensor &input) {
 torch::Tensor coalesced_coarse_solution(torch::Tensor &input) {
   return matrix_transpose_coalesced_coarse_cuda(input);
 }
+torch::Tensor coalesced_coarse_bank_conflict_solution(torch::Tensor &input) {
+  return matrix_transpose_coalesced_coarse_bank_conflict_cuda(input);
+}
 } // namespace matrix_transpose
 
 int main(int argc, char *argv[]) {
@@ -47,7 +50,7 @@ int main(int argc, char *argv[]) {
   auto torch_output = matrix_transpose::baseline(input);
 
   auto naive_output = matrix_transpose::solution(input);
-  auto naive_errors = verbose_allequal(torch_output, naive_output);
+  auto naive_errors = verbose_allequal(naive_output, torch_output);
   if (!naive_errors.empty()) {
     std::cout << "found errors in naive kernel:\n";
     for (auto &error : naive_errors) {
@@ -61,10 +64,20 @@ int main(int argc, char *argv[]) {
     }
   }
   auto coalesced_output = matrix_transpose::coalesced_solution(input);
-  auto coalesced_errors = verbose_allequal(torch_output, coalesced_output);
+  auto coalesced_errors = verbose_allequal(coalesced_output, torch_output);
   if (!coalesced_errors.empty()) {
     std::cout << "found errors in coalesced kernel:\n";
     for (auto &error : coalesced_errors) {
+      std::cout << error << "\n";
+    }
+  }
+  auto coalesced_coarse_bank_conflict_output =
+      matrix_transpose::coalesced_coarse_bank_conflict_solution(input);
+  auto coalesced_coarse_bank_conflict_errors =
+      verbose_allequal(coalesced_coarse_bank_conflict_output, torch_output);
+  if (!coalesced_coarse_bank_conflict_errors.empty()) {
+    std::cout << "found errors in coalesced coarse bank conflict kernel:\n";
+    for (auto &error : coalesced_coarse_bank_conflict_errors) {
       std::cout << error << "\n";
     }
   }
@@ -72,7 +85,7 @@ int main(int argc, char *argv[]) {
   auto coalesced_coarse_output =
       matrix_transpose::coalesced_coarse_solution(input);
   auto coalesced_coarse_errors =
-      verbose_allequal(torch_output, coalesced_coarse_output);
+      verbose_allequal(coalesced_coarse_output, torch_output);
   if (!coalesced_coarse_errors.empty()) {
     std::cout << "found errors in coalesced coarse kernel:\n";
     for (auto &error : coalesced_coarse_errors) {
@@ -85,6 +98,9 @@ int main(int argc, char *argv[]) {
       benchmark([&]() { matrix_transpose::solution(input); });
   auto coalesced_benchmark =
       benchmark([&]() { matrix_transpose::coalesced_solution(input); });
+  auto coalesced_coarse_bank_conflict_benchmark = benchmark([&]() {
+    matrix_transpose::coalesced_coarse_bank_conflict_solution(input);
+  });
   auto coalesced_coarse_benchmark =
       benchmark([&]() { matrix_transpose::coalesced_coarse_solution(input); });
   std::cout << "[matrix transpose] Naive implmentation duration: "
@@ -92,6 +108,10 @@ int main(int argc, char *argv[]) {
   std::cout << "[matrix transpose] coalesced implmentation "
                "duration: "
             << coalesced_benchmark << " ns." << std::endl;
+  std::cout
+      << "[matrix transpose] coalesced coarse bank conflict implmentation "
+         "duration: "
+      << coalesced_coarse_bank_conflict_benchmark << " ns." << std::endl;
   std::cout << "[matrix transpose] coalesced coarse implmentation "
                "duration: "
             << coalesced_coarse_benchmark << " ns." << std::endl;
