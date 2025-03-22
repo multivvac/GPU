@@ -12,7 +12,7 @@ struct FunctionTiming {
   double speedup;
 };
 
-std::string format_speedup(double speedup, int precision = 4) {
+std::string format_speedup(double speedup, int precision = 3) {
   std::ostringstream oss;
   oss << std::fixed << std::setprecision(precision) << speedup;
   if (speedup > 2.0)
