@@ -4,7 +4,7 @@
 #include "utils/timer.hpp"
 #include <utility>
 template <typename Func, typename... Args>
-double benchmark(Func &&func, int warmup_runs = 2, int actual_runs = 5,
+double benchmark(Func &&func, int warmup_runs = 10, int actual_runs = 50,
                  Args &&...args) {
 
   // warm up

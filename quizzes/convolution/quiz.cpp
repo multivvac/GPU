@@ -1,5 +1,6 @@
 #include "convolution_kernel.h"
 #include "utils/benchmark.hpp"
+#include "utils/stat.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <c10/core/DeviceType.h>
@@ -7,6 +8,7 @@
 #include <torch/cuda.h>
 #include <torch/torch.h>
 #include <torch/types.h>
+#include <vector>
 namespace F = torch::nn::functional;
 
 namespace convolution {
@@ -73,8 +75,11 @@ int main(int argc, char *argv[]) {
   auto selftime =
       benchmark([&]() { convolution::solution(input, filter_weight, radius); });
 
-  std::cout << "[convolution] Naive implmentation duration: " << selftime
-            << " ns." << std::endl;
-  std::cout << "[convolution] Pytorch implmentation duration: " << baselinetime
-            << " ns." << std::endl;
+  print_table(
+      std::vector<FunctionTiming>{
+          FunctionTiming{std::string("Naive Implementation"), selftime,
+                         baselinetime / selftime},
+          FunctionTiming{std::string("Pytorch Implementation(baseline)"),
+                         baselinetime, baselinetime / baselinetime}},
+      "Convolution Kernel");
 }
