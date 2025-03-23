@@ -43,21 +43,25 @@ torch::Tensor solution(torch::Tensor &data, torch::Tensor &filter_weight,
                        int radius) {
   return convolution_naive_cuda(data, filter_weight, radius);
 }
+torch::Tensor constant_mem_sol(torch::Tensor &data,
+                               torch::Tensor &filter_weight, int radius) {
+  return convolution_constant_mem_cuda(data, filter_weight, radius);
+}
 } // namespace convolution
 
 int main(int argc, char *argv[]) {
   if (argc < 4) {
-    std::cerr << "Usage: " << argv[0] << " <size> <filter radius> <seed>\n";
+    std::cerr << "Usage: " << argv[0] << " <size> <seed>\n";
   }
   int size = std::stoi(argv[1]);
-  int radius = std::stoi(argv[2]);
   int seed = std::stoi(argv[3]);
 
   auto input = convolution::generate_input(size, seed);
-  auto filter_weight = convolution::generate_filter_weight(radius, seed);
-  auto output = convolution::baseline(input, filter_weight, radius).flatten();
+  auto filter_weight = convolution::generate_filter_weight(FILTER_RADIUS, seed);
+  auto output =
+      convolution::baseline(input, filter_weight, FILTER_RADIUS).flatten();
   auto naive_output =
-      convolution::solution(input, filter_weight, radius).flatten();
+      convolution::solution(input, filter_weight, FILTER_RADIUS).flatten();
 
   auto errors = verbose_allclose(naive_output, output, 1e-5, 1e-5);
 
@@ -69,16 +73,35 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  auto constant_mem_output =
+      convolution::constant_mem_sol(input, filter_weight, FILTER_RADIUS)
+          .flatten();
+
+  auto constant_mem_errors =
+      verbose_allclose(constant_mem_output, output, 1e-5, 1e-5);
+
+  if (constant_mem_errors.size() > 0) {
+    std::cout << "found errors in constant memory convolution kernel:\n";
+    for (auto &error : constant_mem_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   // benchmark
-  auto baselinetime =
-      benchmark([&]() { convolution::baseline(input, filter_weight, radius); });
-  auto selftime =
-      benchmark([&]() { convolution::solution(input, filter_weight, radius); });
+  auto baselinetime = benchmark(
+      [&]() { convolution::baseline(input, filter_weight, FILTER_RADIUS); });
+  auto selftime = benchmark(
+      [&]() { convolution::solution(input, filter_weight, FILTER_RADIUS); });
+  auto constant_memtime = benchmark([&]() {
+    convolution::constant_mem_sol(input, filter_weight, FILTER_RADIUS);
+  });
 
   print_table(
       std::vector<FunctionTiming>{
           FunctionTiming{std::string("Naive Implementation"), selftime,
                          baselinetime / selftime},
+          FunctionTiming{std::string("Constant memory Implementation"),
+                         constant_memtime, baselinetime / constant_memtime},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Convolution Kernel");
