@@ -6,8 +6,17 @@ Hands-On GPU Learning
 
 Some information may be useful for theoretical calculations.
 
-### C++ / CUDA Data Size Table
+### Bandwidth vs Throughput
 
+| Aspect              | Bandwidth                            | Throughput                              |
+|---------------------|--------------------------------------|------------------------------------------|
+| What it measures     | **Data transfer rate**               | **Compute or instruction rate**          |
+| Unit                | GB/s                                 | FLOPS, operations/sec                    |
+| Related to          | **Memory system**                    | **ALUs / cores**                         |
+| Bottleneck when?    | Moving lots of data                  | Performing lots of calculations          |
+| Optimized by        | Coalesced access, memory hierarchy   | Occupancy, instruction-level parallelism |
+
+### C++ / CUDA Data Size Table
 
 | Data Type             | Size (Bytes) | Bit Width | Description / GPU Notes                          |
 |-----------------------|--------------|-----------|--------------------------------------------------|
