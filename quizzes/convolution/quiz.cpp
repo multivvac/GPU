@@ -47,6 +47,11 @@ torch::Tensor constant_mem_sol(torch::Tensor &data,
                                torch::Tensor &filter_weight, int radius) {
   return convolution_constant_mem_cuda(data, filter_weight, radius);
 }
+torch::Tensor constant_2D_tiled_mem_sol(torch::Tensor &data,
+                                        torch::Tensor &filter_weight,
+                                        int radius) {
+  return convolution_2D_tiled_constant_mem_cuda(data, filter_weight, radius);
+}
 } // namespace convolution
 
 int main(int argc, char *argv[]) {
@@ -87,6 +92,22 @@ int main(int argc, char *argv[]) {
     }
     return EXIT_FAILURE;
   }
+
+  auto convolution_2d_mem_output = convolution::constant_2D_tiled_mem_sol(
+                                       input, filter_weight, FILTER_RADIUS)
+                                       .flatten();
+
+  auto convolution_2d_mem_errors =
+      verbose_allclose(convolution_2d_mem_output, output, 1e-5, 1e-5);
+
+  if (convolution_2d_mem_errors.size() > 0) {
+    std::cout << "found errors in constant memory convolution kernel:\n";
+    for (auto &error : convolution_2d_mem_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+
   // benchmark
   auto baselinetime = benchmark(
       [&]() { convolution::baseline(input, filter_weight, FILTER_RADIUS); });
@@ -95,6 +116,9 @@ int main(int argc, char *argv[]) {
   auto constant_memtime = benchmark([&]() {
     convolution::constant_mem_sol(input, filter_weight, FILTER_RADIUS);
   });
+  auto constant_2D_tiled_time = benchmark([&]() {
+    convolution::constant_2D_tiled_mem_sol(input, filter_weight, FILTER_RADIUS);
+  });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -102,6 +126,9 @@ int main(int argc, char *argv[]) {
                          baselinetime / selftime},
           FunctionTiming{std::string("Constant memory Implementation"),
                          constant_memtime, baselinetime / constant_memtime},
+          FunctionTiming{
+              std::string("2d tiled and constant memory Implementation"),
+              constant_2D_tiled_time, baselinetime / constant_2D_tiled_time},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Convolution Kernel");

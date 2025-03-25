@@ -55,6 +55,12 @@ convolution_constant_mem_kernel(const scalar_t *__restrict__ data,
   }
 }
 
+template <typename scalar_t>
+__global__ void
+convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
+                                         float *output, size_t width,
+                                         size_t height) {}
+
 torch::Tensor convolution_naive_cuda(torch::Tensor &data,
                                      torch::Tensor &filter_weight, int radius) {
 
@@ -95,6 +101,31 @@ torch::Tensor convolution_constant_mem_cuda(torch::Tensor &data,
             FILTER_KERNEL_SIZE * FILTER_KERNEL_SIZE * sizeof(scalar_t), 0,
             cudaMemcpyDeviceToDevice);
         convolution_constant_mem_kernel<<<nblocks, nthreads>>>(
+            data.const_data_ptr<scalar_t>(), output.data_ptr<float>(),
+            data.size(1), data.size(2));
+      });
+  cudaDeviceSynchronize();
+  return output;
+}
+
+torch::Tensor convolution_2D_tiled_constant_mem_cuda(
+    torch::Tensor &data, torch::Tensor &filter_weight, int radius) {
+
+  auto output = torch::zeros(
+      data.sizes(), torch::dtype(torch::kFloat32).device(torch::kCUDA));
+  const size_t blocks =
+      (data.size(1) - 1 + THREAD_PER_BLOCK) / THREAD_PER_BLOCK;
+
+  dim3 nblocks(blocks, blocks, 1);
+  dim3 nthreads(THREAD_PER_BLOCK, THREAD_PER_BLOCK, 1);
+
+  AT_DISPATCH_ALL_TYPES(
+      data.scalar_type(), "convolution_2D_tiled_constant_mem_kernel", [&] {
+        cudaMemcpyToSymbol(
+            F<scalar_t>, filter_weight.const_data_ptr<scalar_t>(),
+            FILTER_KERNEL_SIZE * FILTER_KERNEL_SIZE * sizeof(scalar_t), 0,
+            cudaMemcpyDeviceToDevice);
+        convolution_2D_tiled_constant_mem_kernel<<<nblocks, nthreads>>>(
             data.const_data_ptr<scalar_t>(), output.data_ptr<float>(),
             data.size(1), data.size(2));
       });

@@ -11,4 +11,7 @@ torch::Tensor convolution_naive_cuda(torch::Tensor &data,
 torch::Tensor convolution_constant_mem_cuda(torch::Tensor &data,
                                             torch::Tensor &filter_weight,
                                             int radius);
+
+torch::Tensor convolution_2D_tiled_constant_mem_cuda(
+    torch::Tensor &data, torch::Tensor &filter_weight, int radius);
 #endif
