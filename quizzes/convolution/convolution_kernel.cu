@@ -1,4 +1,6 @@
 #include "convolution_kernel.h"
+#include <__clang_cuda_builtin_vars.h>
+#include <cstddef>
 #include <torch/torch.h>
 #include <torch/types.h>
 
@@ -59,7 +61,27 @@ template <typename scalar_t>
 __global__ void
 convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
                                          float *output, size_t width,
-                                         size_t height) {}
+                                         size_t height) {
+  size_t col = blockIdx.x * OUT_TILE_DIM + threadIdx.x - FILTER_RADIUS;
+  size_t row = blockIdx.y * OUT_TILE_DIM + threadIdx.y - FILTER_RADIUS;
+  __shared__ scalar_t data_s[IN_TILE_DIM * IN_TILE_DIM];
+  if (col < 0 || col >= width || row < 0 || row >= height) {
+    data_s[threadIdx.y * IN_TILE_DIM + threadIdx.x] =
+        static_cast<scalar_t>(0.0);
+  } else {
+    data_s[threadIdx.y * IN_TILE_DIM + threadIdx.x] = data[row * width + col];
+  }
+
+  __syncthreads();
+
+  size_t tileCol = threadIdx.x;
+  size_t tileRow = threadIdx.y;
+
+  col += FILTER_RADIUS;
+  row += FILTER_RADIUS;
+  if (row >= 0 && row < height && col >= 0 && col < width) {
+  }
+}
 
 torch::Tensor convolution_naive_cuda(torch::Tensor &data,
                                      torch::Tensor &filter_weight, int radius) {
@@ -113,11 +135,10 @@ torch::Tensor convolution_2D_tiled_constant_mem_cuda(
 
   auto output = torch::zeros(
       data.sizes(), torch::dtype(torch::kFloat32).device(torch::kCUDA));
-  const size_t blocks =
-      (data.size(1) - 1 + THREAD_PER_BLOCK) / THREAD_PER_BLOCK;
+  const size_t blocks = (data.size(1) - 1 + IN_TILE_DIM) / IN_TILE_DIM;
 
   dim3 nblocks(blocks, blocks, 1);
-  dim3 nthreads(THREAD_PER_BLOCK, THREAD_PER_BLOCK, 1);
+  dim3 nthreads(IN_TILE_DIM, IN_TILE_DIM, 1);
 
   AT_DISPATCH_ALL_TYPES(
       data.scalar_type(), "convolution_2D_tiled_constant_mem_kernel", [&] {
