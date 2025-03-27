@@ -12,6 +12,8 @@ namespace matrix_transpose {
 torch::Tensor generate_input(int M, int N, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
+  // seed won't work without manually setting current seed.
+  gen.set_current_seed(seed);
   auto data = torch::rand({M, N}, gen,
                           torch::dtype(torch::kFloat32).device(torch::kCUDA));
 

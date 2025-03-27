@@ -11,6 +11,8 @@ namespace histogram {
 torch::Tensor generate_input(long size, float contention, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
+  // seed won't work without manually setting current seed.
+  gen.set_current_seed(seed);
   auto data = torch::randint(0, NUM_BINS, {size}, gen,
                              torch::dtype(torch::kUInt8).device(torch::kCUDA));
   auto evilvalue = torch::randint(
