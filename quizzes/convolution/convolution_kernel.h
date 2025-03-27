@@ -6,7 +6,7 @@
 #define FILTER_RADIUS 4
 #define FILTER_KERNEL_SIZE (2 * FILTER_RADIUS + 1)
 #define IN_TILE_DIM 32
-#define OUT_TILE_DIM (IN_TILE_DIM - FILTER_RADIUS)
+#define OUT_TILE_DIM (IN_TILE_DIM - 2 * FILTER_RADIUS)
 torch::Tensor convolution_naive_cuda(torch::Tensor &data,
                                      torch::Tensor &filter_weight, int radius);
 

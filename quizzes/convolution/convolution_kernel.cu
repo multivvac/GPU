@@ -1,5 +1,4 @@
 #include "convolution_kernel.h"
-#include <__clang_cuda_builtin_vars.h>
 #include <cstddef>
 #include <torch/torch.h>
 #include <torch/types.h>
@@ -62,8 +61,8 @@ __global__ void
 convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
                                          float *output, size_t width,
                                          size_t height) {
-  size_t col = blockIdx.x * OUT_TILE_DIM + threadIdx.x - FILTER_RADIUS;
-  size_t row = blockIdx.y * OUT_TILE_DIM + threadIdx.y - FILTER_RADIUS;
+  int col = blockIdx.x * OUT_TILE_DIM + threadIdx.x - FILTER_RADIUS;
+  int row = blockIdx.y * OUT_TILE_DIM + threadIdx.y - FILTER_RADIUS;
   __shared__ scalar_t data_s[IN_TILE_DIM * IN_TILE_DIM];
   if (col < 0 || col >= width || row < 0 || row >= height) {
     data_s[threadIdx.y * IN_TILE_DIM + threadIdx.x] =
@@ -71,6 +70,7 @@ convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
   } else {
     data_s[threadIdx.y * IN_TILE_DIM + threadIdx.x] = data[row * width + col];
   }
+  scalar_t pValue = static_cast<scalar_t>(0.0);
 
   __syncthreads();
 
@@ -79,7 +79,15 @@ convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
 
   col += FILTER_RADIUS;
   row += FILTER_RADIUS;
-  if (row >= 0 && row < height && col >= 0 && col < width) {
+  if (row >= 0 && row < height && col >= 0 && col < width &&
+      tileCol < OUT_TILE_DIM && tileRow < OUT_TILE_DIM) {
+    for (size_t fRow = 0; fRow < FILTER_KERNEL_SIZE; fRow++) {
+      for (size_t fCol = 0; fCol < FILTER_KERNEL_SIZE; fCol++) {
+        pValue += F<scalar_t>[fRow * FILTER_KERNEL_SIZE + fCol] *
+                  data_s[(tileRow + fRow) * IN_TILE_DIM + tileCol + fCol];
+      }
+    }
+    output[row * width + col] = pValue;
   }
 }
 
@@ -135,7 +143,7 @@ torch::Tensor convolution_2D_tiled_constant_mem_cuda(
 
   auto output = torch::zeros(
       data.sizes(), torch::dtype(torch::kFloat32).device(torch::kCUDA));
-  const size_t blocks = (data.size(1) - 1 + IN_TILE_DIM) / IN_TILE_DIM;
+  const size_t blocks = (data.size(1) - 1 + OUT_TILE_DIM) / OUT_TILE_DIM;
 
   dim3 nblocks(blocks, blocks, 1);
   dim3 nthreads(IN_TILE_DIM, IN_TILE_DIM, 1);
