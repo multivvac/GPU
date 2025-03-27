@@ -1,3 +1,4 @@
+#include "utils/cuda.hpp"
 #include "utils/timer.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
@@ -24,4 +25,9 @@ int main() {
 
   verbose_allclose(data, data, 0.0, 0.0);
   std::cout << "duration: " << timer.getTime().count() << std::endl;
+
+  int *d_ptr;
+  CUDA_CHECK(cudaMalloc(&d_ptr, sizeof(int) * 100));
+  CUDA_CHECK(cudaFree(d_ptr));
+  return 0;
 }
