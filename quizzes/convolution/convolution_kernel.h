@@ -7,6 +7,7 @@
 #define FILTER_KERNEL_SIZE (2 * FILTER_RADIUS + 1)
 #define IN_TILE_DIM 32
 #define OUT_TILE_DIM (IN_TILE_DIM - 2 * FILTER_RADIUS)
+#define TILE_DIM 32
 torch::Tensor convolution_naive_cuda(torch::Tensor &data,
                                      torch::Tensor &filter_weight, int radius);
 
@@ -15,5 +16,8 @@ torch::Tensor convolution_constant_mem_cuda(torch::Tensor &data,
                                             int radius);
 
 torch::Tensor convolution_2D_tiled_constant_mem_cuda(
+    torch::Tensor &data, torch::Tensor &filter_weight, int radius);
+
+torch::Tensor convolution_cached_2D_tiled_constant_mem_cuda(
     torch::Tensor &data, torch::Tensor &filter_weight, int radius);
 #endif

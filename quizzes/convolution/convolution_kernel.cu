@@ -1,4 +1,5 @@
 #include "convolution_kernel.h"
+#include "utils/cuda.hpp"
 #include <cstddef>
 #include <torch/torch.h>
 #include <torch/types.h>
@@ -91,6 +92,53 @@ convolution_2D_tiled_constant_mem_kernel(const scalar_t *__restrict__ data,
   }
 }
 
+template <typename scalar_t>
+__global__ void convolution_cached_2D_tiled_constant_mem_kernel(
+    const scalar_t *__restrict__ data, float *output, size_t width,
+    size_t height) {
+  int col = blockIdx.x * TILE_DIM + threadIdx.x;
+  int row = blockIdx.y * TILE_DIM + threadIdx.y;
+
+  __shared__ scalar_t data_s[TILE_DIM * TILE_DIM];
+
+  // load data from global memory to L1 cache
+  if (col < width && row < height) {
+    data_s[threadIdx.x + threadIdx.y * TILE_DIM] = data[col + row * width];
+  } else {
+    data_s[threadIdx.x + threadIdx.y * TILE_DIM] = static_cast<scalar_t>(0.0);
+  }
+  __syncthreads();
+
+  scalar_t pValue = static_cast<scalar_t>(0.0);
+  if (col < width && row < height) {
+    for (int fRow = 0; fRow < FILTER_KERNEL_SIZE; fRow++) {
+      for (int fCol = 0; fCol < FILTER_KERNEL_SIZE; fCol++) {
+        // Case when we are able to load from shared memory
+        // Here we must write int sx/sy explicitly. If not then the code will be
+        // buggy.
+        int sx = threadIdx.x - FILTER_RADIUS + fCol;
+        int sy = threadIdx.y - FILTER_RADIUS + fRow;
+        if ((sx >= 0) && (sx < TILE_DIM) && (sy >= 0) && (sy < TILE_DIM)) {
+          pValue += F<scalar_t>[fRow * FILTER_KERNEL_SIZE + fCol] *
+                    data_s[sy * TILE_DIM + sx];
+        } else {
+          // edge case where we need to load from global memory(this
+          // optimization aims to gain performance from L2 cache)
+          if (((col - FILTER_RADIUS + fCol) >= 0) &&
+              ((col - FILTER_RADIUS + fCol) < width) &&
+              ((row - FILTER_RADIUS + fRow) < height) &&
+              ((row - FILTER_RADIUS + fRow) >= 0)) {
+            pValue += F<scalar_t>[fRow * FILTER_KERNEL_SIZE + fCol] *
+                      data[(row - FILTER_RADIUS + fRow) * width + col -
+                           FILTER_RADIUS + fCol];
+          }
+        }
+      }
+    }
+    output[row * width + col] = pValue;
+  }
+}
+
 torch::Tensor convolution_naive_cuda(torch::Tensor &data,
                                      torch::Tensor &filter_weight, int radius) {
 
@@ -158,6 +206,33 @@ torch::Tensor convolution_2D_tiled_constant_mem_cuda(
             data.const_data_ptr<scalar_t>(), output.data_ptr<float>(),
             data.size(1), data.size(2));
       });
-  cudaDeviceSynchronize();
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return output;
+}
+
+torch::Tensor convolution_cached_2D_tiled_constant_mem_cuda(
+    torch::Tensor &data, torch::Tensor &filter_weight, int radius) {
+
+  auto output = torch::zeros(
+      data.sizes(), torch::dtype(torch::kFloat32).device(torch::kCUDA));
+  const size_t blocks = (data.size(1) - 1 + TILE_DIM) / TILE_DIM;
+
+  dim3 nblocks(blocks, blocks, 1);
+  dim3 nthreads(TILE_DIM, TILE_DIM, 1);
+
+  AT_DISPATCH_ALL_TYPES(
+      data.scalar_type(), "convolution_cached_2D_tiled_constant_mem_kernel",
+      [&] {
+        cudaMemcpyToSymbol(
+            F<scalar_t>, filter_weight.const_data_ptr<scalar_t>(),
+            FILTER_KERNEL_SIZE * FILTER_KERNEL_SIZE * sizeof(scalar_t), 0,
+            cudaMemcpyDeviceToDevice);
+        convolution_cached_2D_tiled_constant_mem_kernel<<<nblocks, nthreads>>>(
+            data.const_data_ptr<scalar_t>(), output.data_ptr<float>(),
+            data.size(1), data.size(2));
+      });
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
   return output;
 }

@@ -54,6 +54,12 @@ torch::Tensor constant_2D_tiled_mem_sol(torch::Tensor &data,
                                         int radius) {
   return convolution_2D_tiled_constant_mem_cuda(data, filter_weight, radius);
 }
+torch::Tensor constant_cached_2D_tiled_mem_sol(torch::Tensor &data,
+                                               torch::Tensor &filter_weight,
+                                               int radius) {
+  return convolution_cached_2D_tiled_constant_mem_cuda(data, filter_weight,
+                                                       radius);
+}
 } // namespace convolution
 
 int main(int argc, char *argv[]) {
@@ -103,13 +109,27 @@ int main(int argc, char *argv[]) {
       verbose_allclose(convolution_2d_mem_output, output, 1e-5, 1e-5);
 
   if (convolution_2d_mem_errors.size() > 0) {
-    std::cout << "found errors in constant memory convolution kernel:\n";
+    std::cout << "found errors in 2d tiled convolution kernel:\n";
     for (auto &error : convolution_2d_mem_errors) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
   }
 
+  auto convolution_cached_2d_mem_output =
+      convolution::constant_cached_2D_tiled_mem_sol(input, filter_weight,
+                                                    FILTER_RADIUS)
+          .flatten();
+  auto convolution_cached_2d_mem_errors =
+      verbose_allclose(convolution_cached_2d_mem_output, output, 1e-5, 1e-5);
+
+  if (convolution_cached_2d_mem_errors.size() > 0) {
+    std::cout << "found errors in cached 2d tiled convolution kernel:\n";
+    for (auto &error : convolution_cached_2d_mem_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   // benchmark
   auto baselinetime = benchmark(
       [&]() { convolution::baseline(input, filter_weight, FILTER_RADIUS); });
@@ -121,6 +141,10 @@ int main(int argc, char *argv[]) {
   auto constant_2D_tiled_time = benchmark([&]() {
     convolution::constant_2D_tiled_mem_sol(input, filter_weight, FILTER_RADIUS);
   });
+  auto constant_cached_2D_tiled_time = benchmark([&]() {
+    convolution::constant_cached_2D_tiled_mem_sol(input, filter_weight,
+                                                  FILTER_RADIUS);
+  });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -131,6 +155,10 @@ int main(int argc, char *argv[]) {
           FunctionTiming{
               std::string("2d tiled and constant memory Implementation"),
               constant_2D_tiled_time, baselinetime / constant_2D_tiled_time},
+          FunctionTiming{
+              std::string("2d tiled with L2 cache optimized Implementation"),
+              constant_cached_2D_tiled_time,
+              baselinetime / constant_cached_2D_tiled_time},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Convolution Kernel");
