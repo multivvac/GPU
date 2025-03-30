@@ -27,12 +27,12 @@ torch::Tensor generate_coefficient(int seed) {
       torch::dtype(torch::kFloat32).device(torch::kCUDA).requires_grad(false));
 
   coefficient.index({0, 0, C_CENTER, C_CENTER, C_CENTER}) = 2.0;
-  coefficient.index({0, 0, C_CENTER - 1, C_CENTER, C_CENTER}) = 0.0;
-  coefficient.index({0, 0, C_CENTER + 1, C_CENTER, C_CENTER}) = 0.0;
-  coefficient.index({0, 0, C_CENTER, C_CENTER - 1, C_CENTER}) = 0.0;
-  coefficient.index({0, 0, C_CENTER, C_CENTER + 1, C_CENTER}) = 0.0;
-  coefficient.index({0, 0, C_CENTER, C_CENTER, C_CENTER - 1}) = 0.0;
-  coefficient.index({0, 0, C_CENTER, C_CENTER, C_CENTER + 1}) = 0.0;
+  coefficient.index({0, 0, C_CENTER - 1, C_CENTER, C_CENTER}) = 2.0;
+  coefficient.index({0, 0, C_CENTER + 1, C_CENTER, C_CENTER}) = 2.0;
+  coefficient.index({0, 0, C_CENTER, C_CENTER - 1, C_CENTER}) = 2.0;
+  coefficient.index({0, 0, C_CENTER, C_CENTER + 1, C_CENTER}) = 2.0;
+  coefficient.index({0, 0, C_CENTER, C_CENTER, C_CENTER - 1}) = 6.0;
+  coefficient.index({0, 0, C_CENTER, C_CENTER, C_CENTER + 1}) = 2.0;
 
   return coefficient.contiguous();
 }
@@ -55,6 +55,10 @@ torch::Tensor shared_mem_tiling_solution(torch::Tensor &data,
                                          torch::Tensor &coefficient) {
   return stencil_shared_mem_tiling_cuda(data, coefficient);
 }
+torch::Tensor thread_coarsening_solution(torch::Tensor &data,
+                                         torch::Tensor &coefficient) {
+  return stencil_thread_coarsening_cuda(data, coefficient);
+}
 } // namespace stencil
 
 int main(int argc, char *argv[]) {
@@ -70,6 +74,8 @@ int main(int argc, char *argv[]) {
   auto naive_output = stencil::solution(input, coefficient).flatten();
   auto shared_mem_tiling_output =
       stencil::shared_mem_tiling_solution(input, coefficient).flatten();
+  auto thread_coarsening_output =
+      stencil::thread_coarsening_solution(input, coefficient).flatten();
 
   auto errors = verbose_allclose(naive_output, output, 1e-5, 1e-5);
 
@@ -90,12 +96,24 @@ int main(int argc, char *argv[]) {
     }
     return EXIT_FAILURE;
   }
+
+  auto thread_coarsening_errors =
+      verbose_allclose(thread_coarsening_output, output, 1e-5, 1e-5);
+  if (thread_coarsening_errors.size() > 0) {
+    std::cout << "found errors in thread coarsening kernel:\n";
+    for (auto &error : thread_coarsening_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   // benchmark
   auto baselinetime =
       benchmark([&]() { stencil::baseline(input, coefficient); });
   auto selftime = benchmark([&]() { stencil::solution(input, coefficient); });
   auto shared_mem_tiling_time = benchmark(
       [&]() { stencil::shared_mem_tiling_solution(input, coefficient); });
+  auto thread_coarsening_time = benchmark(
+      [&]() { stencil::thread_coarsening_solution(input, coefficient); });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -104,6 +122,9 @@ int main(int argc, char *argv[]) {
           FunctionTiming{std::string("Shared Memory Tiling Implementation"),
                          shared_mem_tiling_time,
                          baselinetime / shared_mem_tiling_time},
+          FunctionTiming{std::string("Thread Coarsening Implementation"),
+                         thread_coarsening_time,
+                         baselinetime / thread_coarsening_time},
           FunctionTiming{std::string("Pytorch Implementation(hack by conv3d, "
                                      "to check correctness)"),
                          baselinetime, baselinetime / baselinetime}},
