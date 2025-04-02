@@ -96,6 +96,64 @@ stencil_shared_mem_tiling_kernel(const scalar_t *__restrict__ data,
 
 template <typename scalar_t>
 __global__ void
+stencil_register_tiling_kernel(const scalar_t *__restrict__ data,
+                               scalar_t *output, size_t N) {
+  int iStart = blockIdx.z * OUT_TILE_DIM2;
+  const int j = OUT_TILE_DIM2 * blockIdx.y + threadIdx.y - 1;
+  const int k = OUT_TILE_DIM2 * blockIdx.x + threadIdx.x - 1;
+  scalar_t pre;
+  scalar_t nxt;
+  __shared__ scalar_t tile_cur[IN_TILE_DIM2 * IN_TILE_DIM2];
+
+  if (iStart >= 1 && iStart < (N - 1) && j >= 0 && j < N && k >= 0 && k < N) {
+    pre = data[(iStart - 1) * N * N + j * N + k];
+  }
+  if (iStart < (N - 1) && j >= 0 && j < N && k >= 0 && k < N) {
+    tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x] =
+        data[iStart * N * N + j * N + k];
+  }
+  __syncthreads();
+
+  for (int i = iStart;
+       i < (iStart + OUT_TILE_DIM2 > N - 1 ? N - 1 : (iStart + OUT_TILE_DIM2));
+       i++) {
+    if (j >= 0 && j < N && k >= 0 && k < N) {
+      nxt = data[(i + 1) * N * N + j * N + k];
+    }
+    __syncthreads();
+    if (i >= 1 && j >= 1 && j < N - 1 && k >= 1 && k < N - 1 &&
+        threadIdx.x >= 1 && threadIdx.x < (IN_TILE_DIM2 - 1) &&
+        threadIdx.y >= 1 && threadIdx.y < (IN_TILE_DIM2 - 1)) {
+      output[i * N * N + j * N + k] =
+          C<scalar_t>[C_CENTER * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      C_CENTER * C_KERNEL_SIZE + C_CENTER] *
+              tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x] +
+          C<scalar_t>[(C_CENTER - 1) * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      C_CENTER * C_KERNEL_SIZE + C_CENTER] *
+              pre +
+          C<scalar_t>[(C_CENTER + 1) * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      C_CENTER * C_KERNEL_SIZE + C_CENTER] *
+              nxt +
+          C<scalar_t>[C_CENTER * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      (C_CENTER + 1) * C_KERNEL_SIZE + C_CENTER] *
+              tile_cur[(threadIdx.y + 1) * IN_TILE_DIM2 + threadIdx.x] +
+          C<scalar_t>[C_CENTER * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      (C_CENTER - 1) * C_KERNEL_SIZE + C_CENTER] *
+              tile_cur[(threadIdx.y - 1) * IN_TILE_DIM2 + threadIdx.x] +
+          C<scalar_t>[C_CENTER * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      C_CENTER * C_KERNEL_SIZE + C_CENTER - 1] *
+              tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x - 1] +
+          C<scalar_t>[C_CENTER * C_KERNEL_SIZE * C_KERNEL_SIZE +
+                      C_CENTER * C_KERNEL_SIZE + C_CENTER + 1] *
+              tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x + 1];
+    }
+    __syncthreads();
+    pre = tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x];
+    tile_cur[threadIdx.y * IN_TILE_DIM2 + threadIdx.x] = nxt;
+  }
+}
+template <typename scalar_t>
+__global__ void
 stencil_thread_coarsening_kernel(const scalar_t *__restrict__ data,
                                  scalar_t *output, size_t N) {
   int iStart = blockIdx.z * OUT_TILE_DIM2;
@@ -294,6 +352,29 @@ torch::Tensor stencil_shared_mem_tiling_cuda(torch::Tensor &data,
                                sizeof(scalar_t),
                            0, cudaMemcpyDeviceToDevice);
         stencil_naive_kernel<<<nblocks, nthreads>>>(
+            data.const_data_ptr<scalar_t>(), output.data_ptr<scalar_t>(),
+            data.size(1));
+      });
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return output;
+}
+
+torch::Tensor stencil_register_tiling_cuda(torch::Tensor &data,
+                                           torch::Tensor &coefficient) {
+  auto output = torch::zeros(
+      data.sizes(), torch::dtype(torch::kFloat32).device(torch::kCUDA));
+  const size_t blocks = (data.size(1) - 1 + OUT_TILE_DIM2) / OUT_TILE_DIM2;
+
+  dim3 nblocks(blocks, blocks, blocks);
+  dim3 nthreads(IN_TILE_DIM2, IN_TILE_DIM2, 1);
+  AT_DISPATCH_ALL_TYPES(
+      data.scalar_type(), "stencil_register_tiling_kernel", [&] {
+        cudaMemcpyToSymbol(C<scalar_t>, coefficient.const_data_ptr<scalar_t>(),
+                           C_KERNEL_SIZE * C_KERNEL_SIZE * C_KERNEL_SIZE *
+                               sizeof(scalar_t),
+                           0, cudaMemcpyDeviceToDevice);
+        stencil_register_tiling_kernel<<<nblocks, nthreads>>>(
             data.const_data_ptr<scalar_t>(), output.data_ptr<scalar_t>(),
             data.size(1));
       });

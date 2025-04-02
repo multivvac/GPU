@@ -59,6 +59,10 @@ torch::Tensor thread_coarsening_solution(torch::Tensor &data,
                                          torch::Tensor &coefficient) {
   return stencil_thread_coarsening_cuda(data, coefficient);
 }
+torch::Tensor register_tiling_solution(torch::Tensor &data,
+                                       torch::Tensor &coefficient) {
+  return stencil_register_tiling_cuda(data, coefficient);
+}
 } // namespace stencil
 
 int main(int argc, char *argv[]) {
@@ -76,6 +80,8 @@ int main(int argc, char *argv[]) {
       stencil::shared_mem_tiling_solution(input, coefficient).flatten();
   auto thread_coarsening_output =
       stencil::thread_coarsening_solution(input, coefficient).flatten();
+  auto register_tiling_output =
+      stencil::register_tiling_solution(input, coefficient).flatten();
 
   auto errors = verbose_allclose(naive_output, output, 1e-5, 1e-5);
 
@@ -106,6 +112,15 @@ int main(int argc, char *argv[]) {
     }
     return EXIT_FAILURE;
   }
+  auto register_tiling_errors =
+      verbose_allclose(register_tiling_output, output, 1e-5, 1e-5);
+  if (register_tiling_errors.size() > 0) {
+    std::cout << "found errors in register tiling kernel:\n";
+    for (auto &error : register_tiling_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   // benchmark
   auto baselinetime =
       benchmark([&]() { stencil::baseline(input, coefficient); });
@@ -114,6 +129,8 @@ int main(int argc, char *argv[]) {
       [&]() { stencil::shared_mem_tiling_solution(input, coefficient); });
   auto thread_coarsening_time = benchmark(
       [&]() { stencil::thread_coarsening_solution(input, coefficient); });
+  auto register_tiling_time = benchmark(
+      [&]() { stencil::register_tiling_solution(input, coefficient); });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -125,6 +142,9 @@ int main(int argc, char *argv[]) {
           FunctionTiming{std::string("Thread Coarsening Implementation"),
                          thread_coarsening_time,
                          baselinetime / thread_coarsening_time},
+          FunctionTiming{std::string("Register Tiling Implementation"),
+                         register_tiling_time,
+                         baselinetime / register_tiling_time},
           FunctionTiming{std::string("Pytorch Implementation(hack by conv3d, "
                                      "to check correctness)"),
                          baselinetime, baselinetime / baselinetime}},
