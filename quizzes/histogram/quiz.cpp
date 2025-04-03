@@ -1,4 +1,4 @@
-#include "solution.h"
+#include "histogram_kernel.h"
 #include "utils/benchmark.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
@@ -39,6 +39,9 @@ torch::Tensor solution_coarse_contiguous(torch::Tensor &data) {
 torch::Tensor solution_vec(torch::Tensor &data) {
   return histogram_vec_cuda(data);
 }
+torch::Tensor solution_aggregation(torch::Tensor &data) {
+  return histogram_aggregation_cuda(data);
+}
 } // namespace histogram
 
 int main(int argc, char *argv[]) {
@@ -56,6 +59,7 @@ int main(int argc, char *argv[]) {
   auto my_vec_output = histogram::solution_vec(input);
   auto my_coarse_contiguous_output =
       histogram::solution_coarse_contiguous(input);
+  auto aggregation_output = histogram::solution_aggregation(input);
 
   auto errors = verbose_allequal(my_output, output);
 
@@ -94,6 +98,16 @@ int main(int argc, char *argv[]) {
     }
     return EXIT_FAILURE;
   }
+
+  auto errors_aggregation = verbose_allequal(aggregation_output, output);
+
+  if (errors_aggregation.size() > 0) {
+    std::cout << "found errors in aggregation kernel:\n";
+    for (auto &error : errors_aggregation) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   // benchmark
 
   auto selftime = benchmark([&]() { histogram::solution(input); });
@@ -101,6 +115,8 @@ int main(int argc, char *argv[]) {
   auto self_coarse_contiguous_time =
       benchmark([&]() { histogram::solution_coarse_contiguous(input); });
   auto selfvectime = benchmark([&]() { histogram::solution_vec(input); });
+  auto aggregation_time =
+      benchmark([&]() { histogram::solution_aggregation(input); });
   auto baselinetime = benchmark([&]() { histogram::baseline(input); });
 
   std::cout << "[histogram] Privatization implmentation duration: " << selftime
@@ -113,6 +129,8 @@ int main(int argc, char *argv[]) {
             << self_coarse_contiguous_time << " ns." << std::endl;
   std::cout << "[histogram] Vectorized + Privatization implmentation duration: "
             << selfvectime << " ns." << std::endl;
+  std::cout << "[histogram] Aggregation implmentation duration: "
+            << aggregation_time << " ns." << std::endl;
   std::cout << "[histogram] Pytorch implmentation duration: " << baselinetime
             << " ns." << std::endl;
 }
