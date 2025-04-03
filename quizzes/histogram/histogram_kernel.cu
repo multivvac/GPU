@@ -80,7 +80,7 @@ histogram_coarse_contiguous_kernel(const scalar_t *__restrict__ data,
   __syncthreads();
 
   for (unsigned int i = threadIdx.x; i < NUM_BINS; i += blockDim.x) {
-    atomicAdd(&histo[i], localbins[i]);
+    atomicAdd_block(&histo[i], localbins[i]);
   }
 }
 template <typename scalar_t>

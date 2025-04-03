@@ -1,5 +1,6 @@
 #include "histogram_kernel.h"
 #include "utils/benchmark.hpp"
+#include "utils/stat.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <cstdlib>
@@ -119,18 +120,25 @@ int main(int argc, char *argv[]) {
       benchmark([&]() { histogram::solution_aggregation(input); });
   auto baselinetime = benchmark([&]() { histogram::baseline(input); });
 
-  std::cout << "[histogram] Privatization implmentation duration: " << selftime
-            << " ns." << std::endl;
-  std::cout << "[histogram] Coarsening + Privatization interleaved "
-               "implmentation duration: "
-            << selfcoarsetime << " ns." << std::endl;
-  std::cout << "[histogram] Coarsening + Privatization contiguous "
-               "implmentation duration: "
-            << self_coarse_contiguous_time << " ns." << std::endl;
-  std::cout << "[histogram] Vectorized + Privatization implmentation duration: "
-            << selfvectime << " ns." << std::endl;
-  std::cout << "[histogram] Aggregation implmentation duration: "
-            << aggregation_time << " ns." << std::endl;
-  std::cout << "[histogram] Pytorch implmentation duration: " << baselinetime
-            << " ns." << std::endl;
+  print_table(
+      std::vector<FunctionTiming>{
+          FunctionTiming{std::string("Privatization Implementation"), selftime,
+                         baselinetime / selftime},
+          FunctionTiming{
+              std::string(
+                  "Coarsening + Privatization Interleaved Implementation"),
+              selfcoarsetime, baselinetime / selfcoarsetime},
+          FunctionTiming{
+              std::string(
+                  "Coarsening + Privatization Contiguous Implementation"),
+              self_coarse_contiguous_time,
+              baselinetime / self_coarse_contiguous_time},
+          FunctionTiming{
+              std::string("Vectorized + Privatization Implementation"),
+              selfvectime, baselinetime / selfvectime},
+          FunctionTiming{std::string("Aggregation Implementation"),
+                         aggregation_time, baselinetime / aggregation_time},
+          FunctionTiming{std::string("Pytorch Implementation(baseline)"),
+                         baselinetime, baselinetime / baselinetime}},
+      "Histogram Kernel");
 }
