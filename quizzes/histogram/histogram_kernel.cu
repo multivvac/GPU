@@ -136,7 +136,7 @@ __global__ void histogram_aggregation_kernel(const scalar_t *__restrict__ data,
       aggregation += 1;
     } else {
       if (aggregation > 0) {
-        atomicAdd_block(&(localbins[bin]), aggregation);
+        atomicAdd_block(&(localbins[pre_bin]), aggregation);
       }
       aggregation = 1;
       pre_bin = bin;
