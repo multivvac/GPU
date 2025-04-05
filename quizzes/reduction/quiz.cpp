@@ -1,5 +1,6 @@
 #include "reduction_kernel.h"
 #include "utils/benchmark.hpp"
+#include "utils/helper.hpp"
 #include "utils/stat.hpp"
 #include "utils/validate.hpp"
 #include <ATen/cuda/CUDAGeneratorImpl.h>
@@ -10,6 +11,7 @@ namespace reduction {
 torch::Tensor generate_input(int size, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
+  size = next_pow_of_2(static_cast<unsigned int>(size));
   // seed won't work without manually setting current seed.
   gen.set_current_seed(seed);
   auto data = torch::randint(
@@ -27,8 +29,8 @@ torch::Tensor baseline(torch::Tensor &data) {
 }
 
 torch::Tensor solution(torch::Tensor &data) {
-  auto temp = data.clone();
-  return reduction_naive_cuda(temp);
+  auto tmp = data.clone();
+  return reduction_naive_cuda(tmp);
 }
 } // namespace reduction
 
@@ -42,6 +44,7 @@ int main(int argc, char *argv[]) {
   auto input = reduction::generate_input(size, seed);
   auto output = reduction::baseline(input);
   auto naive_output = reduction::solution(input);
+  auto output1 = reduction::solution(input);
 
   auto errors = verbose_allequal(naive_output, output);
 
