@@ -6,5 +6,6 @@
 #define THREAD_PER_BLOCK 8
 torch::Tensor reduction_naive_cuda(torch::Tensor &data);
 torch::Tensor reduction_convergent_cuda(torch::Tensor &data);
+torch::Tensor reduction_shared_mem_cuda(torch::Tensor &data);
 
 #endif

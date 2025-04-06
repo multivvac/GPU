@@ -36,6 +36,10 @@ torch::Tensor convergent_solution(torch::Tensor &data) {
   auto tmp = data.clone();
   return reduction_convergent_cuda(tmp);
 }
+torch::Tensor shared_mem_solution(torch::Tensor &data) {
+  auto tmp = data.clone();
+  return reduction_shared_mem_cuda(tmp);
+}
 } // namespace reduction
 
 int main(int argc, char *argv[]) {
@@ -49,6 +53,7 @@ int main(int argc, char *argv[]) {
   auto output = reduction::baseline(input);
   auto naive_output = reduction::solution(input);
   auto convergent_output = reduction::convergent_solution(input);
+  auto shared_mem_output = reduction::shared_mem_solution(input);
 
   auto errors = verbose_allequal(naive_output, output);
 
@@ -64,7 +69,17 @@ int main(int argc, char *argv[]) {
 
   if (convergent_errors.size() > 0) {
     std::cout << "found errors in convergent reduction kernel:\n";
-    for (auto &error : errors) {
+    for (auto &error : convergent_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+
+  auto shared_mem_errors = verbose_allequal(naive_output, shared_mem_output);
+
+  if (shared_mem_errors.size() > 0) {
+    std::cout << "found errors in shared memory kernel:\n";
+    for (auto &error : shared_mem_errors) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
@@ -75,6 +90,8 @@ int main(int argc, char *argv[]) {
   auto naivetime = benchmark([&]() { reduction::solution(input); });
   auto convergent_time =
       benchmark([&]() { reduction::convergent_solution(input); });
+  auto shared_mem_time =
+      benchmark([&]() { reduction::shared_mem_solution(input); });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -82,6 +99,8 @@ int main(int argc, char *argv[]) {
                          baselinetime / naivetime},
           FunctionTiming{std::string("Convergent Implementation"),
                          convergent_time, baselinetime / convergent_time},
+          FunctionTiming{std::string("Shared Memory Implementation"),
+                         shared_mem_time, baselinetime / shared_mem_time},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Reduction Kernel");
