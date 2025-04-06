@@ -11,7 +11,7 @@ namespace reduction {
 torch::Tensor generate_input(size_t size, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
-  u_int64_t size_pow_of_2 = next_pow_of_2(static_cast<u_int64_t>(size));
+  size_t size_pow_of_2 = next_pow_of_2(size);
   // seed won't work without manually setting current seed.
   gen.set_current_seed(seed);
   auto data = torch::randint(
@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
   if (argc < 3) {
     std::cerr << "Usage: " << argv[0] << " <size> <seed>\n";
   }
-  size_t size = std::stol(argv[1]);
-  int seed = std::stol(argv[2]);
+  size_t size = std::stoul(argv[1]);
+  int seed = std::stoi(argv[2]);
 
   auto input = reduction::generate_input(size, seed);
   auto output = reduction::baseline(input);

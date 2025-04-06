@@ -6,7 +6,7 @@
 
 template <typename scalar_t>
 __global__ void reduction_naive_kernel(scalar_t *__restrict__ in,
-                                       scalar_t *__restrict__ S, size_t N) {
+                                       scalar_t *__restrict__ S) {
   size_t section = 2 * blockIdx.x * blockDim.x;
   size_t tid = 2 * threadIdx.x;
   // note here the bound should be less or equal blockdim.x, because blockdim.x
@@ -26,8 +26,7 @@ __global__ void reduction_naive_kernel(scalar_t *__restrict__ in,
 
 template <typename scalar_t>
 __global__ void reduction_convergent_kernel(scalar_t *__restrict__ in,
-                                            scalar_t *__restrict__ P,
-                                            size_t N) {
+                                            scalar_t *__restrict__ P) {
   size_t section = 2 * blockIdx.x * blockDim.x;
   size_t tid = threadIdx.x;
   for (size_t stride = blockDim.x; stride >= 1; stride /= 2) {
@@ -43,8 +42,7 @@ __global__ void reduction_convergent_kernel(scalar_t *__restrict__ in,
 
 template <typename scalar_t>
 __global__ void reduction_shared_mem_kernel(scalar_t *__restrict__ in,
-                                            scalar_t *__restrict__ P,
-                                            size_t N) {
+                                            scalar_t *__restrict__ P) {
   size_t section = 2 * blockIdx.x * blockDim.x;
   size_t tid = threadIdx.x;
   __shared__ scalar_t in_s[MAX_THREAD_BLOCK];
@@ -69,7 +67,7 @@ torch::Tensor reduction_naive_cuda(torch::Tensor &data) {
   dim3 nthreads(THREAD_PER_BLOCK, 1, 1);
   AT_DISPATCH_ALL_TYPES(data.scalar_type(), "reduction_naive_kernel", [&] {
     reduction_naive_kernel<<<nblocks, nthreads>>>(data.data_ptr<scalar_t>(),
-                                                  sum.data_ptr<scalar_t>(), N);
+                                                  sum.data_ptr<scalar_t>());
   });
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -89,7 +87,7 @@ torch::Tensor reduction_convergent_cuda(torch::Tensor &data) {
   dim3 nthreads(threads, 1, 1);
   AT_DISPATCH_ALL_TYPES(data.scalar_type(), "reduction_convergent_kernel", [&] {
     reduction_convergent_kernel<<<nblocks, nthreads>>>(
-        data.data_ptr<scalar_t>(), partial.data_ptr<scalar_t>(), N);
+        data.data_ptr<scalar_t>(), partial.data_ptr<scalar_t>());
   });
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
@@ -109,7 +107,7 @@ torch::Tensor reduction_shared_mem_cuda(torch::Tensor &data) {
   dim3 nthreads(threads, 1, 1);
   AT_DISPATCH_ALL_TYPES(data.scalar_type(), "reduction_shared_mem_kernel", [&] {
     reduction_shared_mem_kernel<<<nblocks, nthreads>>>(
-        data.data_ptr<scalar_t>(), partial.data_ptr<scalar_t>(), N);
+        data.data_ptr<scalar_t>(), partial.data_ptr<scalar_t>());
   });
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
