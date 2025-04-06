@@ -32,6 +32,10 @@ torch::Tensor solution(torch::Tensor &data) {
   auto tmp = data.clone();
   return reduction_naive_cuda(tmp);
 }
+torch::Tensor convergent_solution(torch::Tensor &data) {
+  auto tmp = data.clone();
+  return reduction_convergent_cuda(tmp);
+}
 } // namespace reduction
 
 int main(int argc, char *argv[]) {
@@ -44,7 +48,7 @@ int main(int argc, char *argv[]) {
   auto input = reduction::generate_input(size, seed);
   auto output = reduction::baseline(input);
   auto naive_output = reduction::solution(input);
-  auto output1 = reduction::solution(input);
+  auto convergent_output = reduction::convergent_solution(input);
 
   auto errors = verbose_allequal(naive_output, output);
 
@@ -56,14 +60,28 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
+  auto convergent_errors = verbose_allequal(naive_output, convergent_output);
+
+  if (convergent_errors.size() > 0) {
+    std::cout << "found errors in convergent reduction kernel:\n";
+    for (auto &error : errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+
   // benchmark
   auto baselinetime = benchmark([&]() { reduction::baseline(input); });
   auto naivetime = benchmark([&]() { reduction::solution(input); });
+  auto convergent_time =
+      benchmark([&]() { reduction::convergent_solution(input); });
 
   print_table(
       std::vector<FunctionTiming>{
           FunctionTiming{std::string("Naive Implementation"), naivetime,
                          baselinetime / naivetime},
+          FunctionTiming{std::string("Convergent Implementation"),
+                         convergent_time, baselinetime / convergent_time},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Reduction Kernel");
