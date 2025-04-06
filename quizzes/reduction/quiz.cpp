@@ -8,14 +8,14 @@
 #include <torch/torch.h>
 
 namespace reduction {
-torch::Tensor generate_input(int size, int seed) {
+torch::Tensor generate_input(size_t size, int seed) {
 
   auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
-  size = next_pow_of_2(static_cast<unsigned int>(size));
+  u_int64_t size_pow_of_2 = next_pow_of_2(static_cast<u_int64_t>(size));
   // seed won't work without manually setting current seed.
   gen.set_current_seed(seed);
   auto data = torch::randint(
-      10, {size}, gen,
+      10, {static_cast<int64_t>(size_pow_of_2)}, gen,
       torch::dtype(torch::kInt64).device(torch::kCUDA).requires_grad(false));
   return data.contiguous();
 }
@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
   if (argc < 3) {
     std::cerr << "Usage: " << argv[0] << " <size> <seed>\n";
   }
-  int size = std::stoi(argv[1]);
-  int seed = std::stoi(argv[2]);
+  size_t size = std::stol(argv[1]);
+  int seed = std::stol(argv[2]);
 
   auto input = reduction::generate_input(size, seed);
   auto output = reduction::baseline(input);
