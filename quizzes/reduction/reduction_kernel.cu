@@ -58,6 +58,29 @@ __global__ void reduction_shared_mem_kernel(scalar_t *__restrict__ in,
   }
 }
 
+template <typename scalar_t>
+__global__ void reduction_thread_coarsening_kernel(scalar_t *__restrict__ in,
+                                                   scalar_t *__restrict__ S) {
+  size_t section = 2 * COARSE_FACTOR * blockDim.x * blockIdx.x;
+  size_t tid = threadIdx.x;
+  __shared__ scalar_t in_s[THREAD_PER_BLOCK];
+  scalar_t sum = in[section + tid];
+  for (size_t tile = 1; tile < COARSE_FACTOR * 2; tile++) {
+    sum += in[section + tid + tile * blockDim.x];
+  }
+  in_s[tid] = sum;
+  for (size_t stride = blockDim.x / 2; stride >= 1; stride /= 2) {
+    __syncthreads();
+    if (tid < stride) {
+      in_s[tid] += in_s[tid + stride];
+    }
+  }
+  if (tid == 0) {
+    atomicAdd(reinterpret_cast<unsigned long long int *>(&S[0]),
+              static_cast<unsigned long long int>(in_s[0]));
+  }
+}
+
 torch::Tensor reduction_naive_cuda(torch::Tensor &data) {
   size_t N = data.numel();
 
@@ -112,4 +135,22 @@ torch::Tensor reduction_shared_mem_cuda(torch::Tensor &data) {
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
   return blockOverflow ? reduction_convergent_cuda(partial) : partial;
+}
+
+torch::Tensor reduction_thread_coarsening_cuda(torch::Tensor &data) {
+  size_t N = data.numel();
+
+  const size_t blocks = (N - 1 + 2 * COARSE_FACTOR * THREAD_PER_BLOCK) /
+                        (2 * COARSE_FACTOR * THREAD_PER_BLOCK);
+  auto sum = torch::zeros(1, torch::dtype(torch::kInt64).device(torch::kCUDA));
+  dim3 nblocks(blocks, 1, 1);
+  dim3 nthreads(THREAD_PER_BLOCK, 1, 1);
+  AT_DISPATCH_ALL_TYPES(
+      data.scalar_type(), "reduction_thread_coarsening_kernel", [&] {
+        reduction_thread_coarsening_kernel<<<nblocks, nthreads>>>(
+            data.data_ptr<scalar_t>(), sum.data_ptr<scalar_t>());
+      });
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return sum;
 }

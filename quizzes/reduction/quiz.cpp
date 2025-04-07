@@ -40,6 +40,10 @@ torch::Tensor shared_mem_solution(torch::Tensor &data) {
   auto tmp = data.clone();
   return reduction_shared_mem_cuda(tmp);
 }
+torch::Tensor thread_coarsening_solution(torch::Tensor &data) {
+  auto tmp = data.clone();
+  return reduction_thread_coarsening_cuda(tmp);
+}
 } // namespace reduction
 
 int main(int argc, char *argv[]) {
@@ -54,6 +58,7 @@ int main(int argc, char *argv[]) {
   auto naive_output = reduction::solution(input);
   auto convergent_output = reduction::convergent_solution(input);
   auto shared_mem_output = reduction::shared_mem_solution(input);
+  auto thread_coarsening_output = reduction::thread_coarsening_solution(input);
 
   auto errors = verbose_allequal(naive_output, output);
 
@@ -65,7 +70,7 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  auto convergent_errors = verbose_allequal(naive_output, convergent_output);
+  auto convergent_errors = verbose_allequal(convergent_output, output);
 
   if (convergent_errors.size() > 0) {
     std::cout << "found errors in convergent reduction kernel:\n";
@@ -75,11 +80,22 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  auto shared_mem_errors = verbose_allequal(naive_output, shared_mem_output);
+  auto shared_mem_errors = verbose_allequal(shared_mem_output, output);
 
   if (shared_mem_errors.size() > 0) {
     std::cout << "found errors in shared memory kernel:\n";
     for (auto &error : shared_mem_errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+
+  auto thread_coarsening_errors =
+      verbose_allequal(thread_coarsening_output, output);
+
+  if (thread_coarsening_errors.size() > 0) {
+    std::cout << "found errors in thread coarsening kernel:\n";
+    for (auto &error : thread_coarsening_errors) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
@@ -92,6 +108,8 @@ int main(int argc, char *argv[]) {
       benchmark([&]() { reduction::convergent_solution(input); });
   auto shared_mem_time =
       benchmark([&]() { reduction::shared_mem_solution(input); });
+  auto thread_coarsening_time =
+      benchmark([&]() { reduction::thread_coarsening_solution(input); });
 
   print_table(
       std::vector<FunctionTiming>{
@@ -101,6 +119,9 @@ int main(int argc, char *argv[]) {
                          convergent_time, baselinetime / convergent_time},
           FunctionTiming{std::string("Shared Memory Implementation"),
                          shared_mem_time, baselinetime / shared_mem_time},
+          FunctionTiming{std::string("Thread Coarsening Implementation"),
+                         thread_coarsening_time,
+                         baselinetime / thread_coarsening_time},
           FunctionTiming{std::string("Pytorch Implementation(baseline)"),
                          baselinetime, baselinetime / baselinetime}},
       "Reduction Kernel");
