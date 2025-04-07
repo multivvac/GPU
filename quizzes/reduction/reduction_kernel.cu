@@ -60,13 +60,15 @@ __global__ void reduction_shared_mem_kernel(scalar_t *__restrict__ in,
 
 template <typename scalar_t>
 __global__ void reduction_thread_coarsening_kernel(scalar_t *__restrict__ in,
-                                                   scalar_t *__restrict__ S) {
+                                                   scalar_t *__restrict__ S,
+                                                   size_t N) {
   size_t section = 2 * COARSE_FACTOR * blockDim.x * blockIdx.x;
   size_t tid = threadIdx.x;
   __shared__ scalar_t in_s[THREAD_PER_BLOCK];
-  scalar_t sum = in[section + tid];
+  scalar_t sum = (section + tid) < N ? in[section + tid] : 0;
   for (size_t tile = 1; tile < COARSE_FACTOR * 2; tile++) {
-    sum += in[section + tid + tile * blockDim.x];
+    size_t idx = section + tid + tile * blockDim.x;
+    sum += idx < N ? in[idx] : 0;
   }
   in_s[tid] = sum;
   for (size_t stride = blockDim.x / 2; stride >= 1; stride /= 2) {
@@ -148,7 +150,7 @@ torch::Tensor reduction_thread_coarsening_cuda(torch::Tensor &data) {
   AT_DISPATCH_ALL_TYPES(
       data.scalar_type(), "reduction_thread_coarsening_kernel", [&] {
         reduction_thread_coarsening_kernel<<<nblocks, nthreads>>>(
-            data.data_ptr<scalar_t>(), sum.data_ptr<scalar_t>());
+            data.data_ptr<scalar_t>(), sum.data_ptr<scalar_t>(), N);
       });
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
