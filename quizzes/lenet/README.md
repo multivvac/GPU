@@ -4,7 +4,7 @@ A pure CUDA implementation for classical CNN LeNet.
 
 ## Architecture
 
-![the architecture of LeNet](https://upload.wikimedia.org/wikipedia/commons/3/35/LeNet-5_architecture.svg!)
+![the architecture of LeNet](https://upload.wikimedia.org/wikipedia/commons/3/35/LeNet-5_architecture.svg)
 
 ## Kernels
 
