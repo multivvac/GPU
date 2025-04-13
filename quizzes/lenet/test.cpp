@@ -1,0 +1,68 @@
+
+#include "lenet_kernel.h"
+#include "utils/benchmark.hpp"
+#include "utils/stat.hpp"
+#include "utils/validate.hpp"
+#include <ATen/cuda/CUDAGeneratorImpl.h>
+#include <iostream>
+#include <torch/nn/functional/fold.h>
+#include <torch/nn/options/fold.h>
+#include <torch/torch.h>
+#include <torch/types.h>
+
+namespace F = torch::nn::functional;
+torch::Tensor generate_input(int N, int C, int H, int W, int seed) {
+
+  auto gen = torch::make_generator<at::CUDAGeneratorImpl>(seed);
+  // seed won't work without manually setting current seed.
+  gen.set_current_seed(seed);
+  auto data = torch::rand({N, C, H, W}, gen,
+                          torch::dtype(torch::kFloat32).device(torch::kCUDA));
+  return data.contiguous();
+}
+
+torch::Tensor im2col_baseline(torch::Tensor &data, size_t K) {
+  return F::unfold(data, F::UnfoldFuncOptions(K).stride(1));
+}
+
+int test_im2col() {
+  auto input = generate_input(1, 1, 28, 28, 0);
+  auto output = im2col_baseline(input, 3);
+  auto im2col_output = im2col_cuda(input, 3);
+  auto errors = verbose_allequal(im2col_output.flatten(), output.flatten());
+
+  if (errors.size() > 0) {
+    std::cout << "found errors in im2col kernel:\n";
+    for (auto &error : errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+
+  std::cout << "Running tests...\n";
+  int status = 0;
+
+  status |= test_im2col();
+
+  if (status == 0) {
+    std::cout << "\n✅ All tests passed successfully!\n";
+  } else {
+    std::cerr << "\n❌ Some tests failed.\n";
+    return status;
+  }
+
+  auto input = generate_input(1, 1, 28, 28, 0);
+  auto torch_benchmark = benchmark([&]() { im2col_baseline(input, 3); });
+  auto naive_benchmark = benchmark([&]() { im2col_cuda(input, 3); });
+  print_table(
+      std::vector<FunctionTiming>{
+          FunctionTiming{std::string("Naive Implementation"), naive_benchmark,
+                         torch_benchmark / naive_benchmark},
+          FunctionTiming{std::string("PyTorch Implementation"), torch_benchmark,
+                         torch_benchmark / torch_benchmark}},
+      "Im2Col Kernel");
+}
