@@ -46,6 +46,34 @@ __global__ void im2col_kernel(size_t C, size_t H, size_t W, size_t K,
   }
 }
 
+template <typename scalar_t>
+// to simplify, assume blocks = C, H x W = threads
+__global__ void im2col_optimized_kernel(size_t C, size_t H, size_t W, size_t K,
+                                        const scalar_t *__restrict__ in,
+                                        scalar_t *__restrict__ out) {
+  size_t section = blockDim.x * blockIdx.x;
+  size_t tid = section + threadIdx.x;
+
+  size_t H_out = H - K + 1;
+  size_t W_out = W - K + 1;
+  size_t W_unroll = H_out * W_out;
+
+  __shared__ scalar_t in_s[28 * 28];
+  in_s[threadIdx.x] = in[tid];
+  __syncthreads();
+
+  size_t h = threadIdx.x / W;
+  size_t w = threadIdx.x % W;
+  if (h < H_out && w < W_out) {
+    size_t w_unroll = W_out * h + w;
+    for (size_t p = 0; p < K; p++) {
+      for (size_t q = 0; q < K; q++) {
+        size_t h_unroll = blockIdx.x * K * K + p * K + q;
+        out[h_unroll * W_unroll + w_unroll] = in_s[threadIdx.x + p * W + q];
+      }
+    }
+  }
+}
 
 __global__ void linear_forward_kernel() {};
 __global__ void conv_backward() {};
@@ -73,6 +101,35 @@ torch::Tensor im2col_cuda(torch::Tensor &input, size_t K) {
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(
         input.scalar_type(), "im2col_kernel", [&] {
           im2col_kernel<<<blocks, THREADS_PER_BLOCK>>>(
+              C, H, W, K, input.const_data_ptr<scalar_t>() + i * C * H * W,
+              output.data_ptr<scalar_t>() + i * H_unroll * W_unroll);
+        });
+  }
+  CUDA_CHECK(cudaGetLastError());
+  CUDA_CHECK(cudaDeviceSynchronize());
+  return output;
+};
+
+torch::Tensor im2col_optimized_cuda(torch::Tensor &input, size_t K) {
+  auto N = input.size(0);
+  auto C = input.size(1);
+  auto H = input.size(2);
+  auto W = input.size(3);
+
+  int64_t H_out = H - K + 1;
+  int64_t W_out = W - K + 1;
+  int64_t H_unroll = C * K * K;
+  int64_t W_unroll = H_out * W_out;
+
+  auto output =
+      torch::zeros({N, H_unroll, W_unroll},
+                   torch::dtype(torch::kFloat32).device(torch::kCUDA));
+
+  auto blocks = C;
+  for (size_t i = 0; i < N; i++) {
+    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+        input.scalar_type(), "im2col_optimized_kernel", [&] {
+          im2col_optimized_kernel<<<blocks, H * W>>>(
               C, H, W, K, input.const_data_ptr<scalar_t>() + i * C * H * W,
               output.data_ptr<scalar_t>() + i * H_unroll * W_unroll);
         });
