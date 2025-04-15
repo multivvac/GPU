@@ -28,7 +28,7 @@ torch::Tensor im2col_baseline(torch::Tensor &data, size_t K) {
 }
 
 int test_im2col() {
-  auto input = generate_input(1, 1, 28, 28, 0);
+  auto input = generate_input(1, 6, 28, 28, 0);
   auto output = im2col_baseline(input, 6);
   auto im2col_output = im2col_cuda(input, 6);
   auto im2col_optimized_output = im2col_optimized_cuda(input, 6);
@@ -45,7 +45,7 @@ int test_im2col() {
   }
   if (opt_errors.size() > 0) {
     std::cout << "found errors in im2col optimized kernel:\n";
-    for (auto &error : errors) {
+    for (auto &error : opt_errors) {
       std::cout << error << "\n";
     }
     return EXIT_FAILURE;
@@ -67,7 +67,7 @@ int main(int argc, char *argv[]) {
     return status;
   }
 
-  auto input = generate_input(1, 1, 28, 28, 0);
+  auto input = generate_input(1, 6, 28, 28, 0);
   auto torch_benchmark = benchmark([&]() { im2col_baseline(input, 6); });
   auto naive_benchmark = benchmark([&]() { im2col_cuda(input, 6); });
   auto opt_benchmark = benchmark([&]() { im2col_optimized_cuda(input, 6); });
