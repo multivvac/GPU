@@ -9,6 +9,11 @@
 #include <torch/nn/options/fold.h>
 #include <torch/torch.h>
 #include <torch/types.h>
+#define KERNEL_SIZE 6
+#define IMAGE_HEIGHT 28
+#define IMAGE_WIDTH 28
+#define CHAN 6
+#define BATCH 16
 
 namespace F = torch::nn::functional;
 torch::Tensor generate_input(int N, int C, int H, int W, int seed) {
@@ -28,10 +33,10 @@ torch::Tensor im2col_baseline(torch::Tensor &data, size_t K) {
 }
 
 int test_im2col() {
-  auto input = generate_input(1, 6, 28, 28, 0);
-  auto output = im2col_baseline(input, 6);
-  auto im2col_output = im2col_cuda(input, 6);
-  auto im2col_optimized_output = im2col_optimized_cuda(input, 6);
+  auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_WIDTH, 42);
+  auto output = im2col_baseline(input, KERNEL_SIZE);
+  auto im2col_output = im2col_cuda(input, KERNEL_SIZE);
+  auto im2col_optimized_output = im2col_optimized_cuda(input, KERNEL_SIZE);
   auto errors = verbose_allequal(im2col_output.flatten(), output.flatten());
   auto opt_errors =
       verbose_allequal(im2col_optimized_output.flatten(), output.flatten());
@@ -67,10 +72,12 @@ int main(int argc, char *argv[]) {
     return status;
   }
 
-  auto input = generate_input(1, 6, 28, 28, 0);
-  auto torch_benchmark = benchmark([&]() { im2col_baseline(input, 6); });
-  auto naive_benchmark = benchmark([&]() { im2col_cuda(input, 6); });
-  auto opt_benchmark = benchmark([&]() { im2col_optimized_cuda(input, 6); });
+  auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_HEIGHT, 42);
+  auto torch_benchmark =
+      benchmark([&]() { im2col_baseline(input, KERNEL_SIZE); });
+  auto naive_benchmark = benchmark([&]() { im2col_cuda(input, KERNEL_SIZE); });
+  auto opt_benchmark =
+      benchmark([&]() { im2col_optimized_cuda(input, KERNEL_SIZE); });
   print_table(
       std::vector<FunctionTiming>{
           FunctionTiming{std::string("Naive Implementation"), naive_benchmark,
