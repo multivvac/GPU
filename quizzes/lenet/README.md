@@ -25,3 +25,8 @@ void conv_forward(size_t N, size_t M, size_t C, size_t H, size_t W, size_t K, fl
 | `X` | `float*` | input tensor with size `(N, M, H, W)` |
 | `F` | `float*` | filter weight `K x K` |
 | `Y` | `float*` | output tensor with size `(N, C, H_o, W_o)` |
+
+In convolution implementation, a common optimization technique involves transforming the input image into a column matrix using an `im2col` operation, allowing convolution to be treated as a matrix multiplication.
+
+The `im2col` kernel itself is relatively straightforward. However, I ran into challenges when trying to optimize it using a shared memory tiling approach. Interestingly, for smaller input dimensions such as 6x28x28, the optimized kernel outperformed the baseline. But as I increased the input size--for example, to 6x56x56--performance drop noticeably.
+
