@@ -10,10 +10,10 @@
 #include <torch/torch.h>
 #include <torch/types.h>
 #define KERNEL_SIZE 6
-#define IMAGE_HEIGHT 28
-#define IMAGE_WIDTH 28
+#define IMAGE_HEIGHT 56
+#define IMAGE_WIDTH 56
 #define CHAN 6
-#define BATCH 16
+#define BATCH 1
 
 namespace F = torch::nn::functional;
 torch::Tensor generate_input(int N, int C, int H, int W, int seed) {
