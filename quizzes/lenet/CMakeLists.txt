@@ -1,5 +1,4 @@
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo")
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --ptxas-options=-v -maxrregcount=32")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS}")
 add_executable(lenet main.cpp lenet_kernel.cu)
 target_link_libraries(lenet PRIVATE CUDA::cudart)
 target_link_libraries(lenet PRIVATE "${TORCH_LIBRARIES}")

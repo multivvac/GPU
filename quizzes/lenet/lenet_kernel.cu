@@ -24,9 +24,10 @@ template <typename scalar_t>
  * @param in     Pointer to input image data (size: C x H x W)
  * @param out    Pointer to output matrix (size: (C x R x S) x (H_out x W_out))
  */
-__global__ void im2col_kernel(size_t C, size_t H, size_t W, size_t K,
-                              const scalar_t *__restrict__ in,
-                              scalar_t *__restrict__ out) {
+__launch_bounds__(1024) __global__
+    void im2col_kernel(size_t C, size_t H, size_t W, size_t K,
+                       const scalar_t *__restrict__ in,
+                       scalar_t *__restrict__ out) {
   size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   size_t H_out = H - K + 1;
   size_t W_out = H - K + 1;
@@ -174,7 +175,7 @@ torch::Tensor im2col_optimized_cuda(torch::Tensor &input, size_t K) {
   int64_t W_unroll = H_out * W_out;
   auto blocks = dim3((W_out + TILE_SIZE - 1) / TILE_SIZE,
                      (H_out + TILE_SIZE - 1) / TILE_SIZE, C);
-  auto threads = dim3(32, 32);
+  auto threads = dim3(std::min(32, TILE_SIZE), std::min(32, TILE_SIZE));
 
   auto output =
       torch::zeros({N, H_unroll, W_unroll},

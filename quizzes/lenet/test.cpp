@@ -9,11 +9,11 @@
 #include <torch/nn/options/fold.h>
 #include <torch/torch.h>
 #include <torch/types.h>
-#define KERNEL_SIZE 6
-#define IMAGE_HEIGHT 56
-#define IMAGE_WIDTH 56
+#define KERNEL_SIZE 16
+#define IMAGE_HEIGHT 512
+#define IMAGE_WIDTH 512
 #define CHAN 6
-#define BATCH 1
+#define BATCH 2
 
 namespace F = torch::nn::functional;
 torch::Tensor generate_input(int N, int C, int H, int W, int seed) {
@@ -82,8 +82,8 @@ int main(int argc, char *argv[]) {
       std::vector<FunctionTiming>{
           FunctionTiming{std::string("Naive Implementation"), naive_benchmark,
                          torch_benchmark / naive_benchmark},
-          FunctionTiming{std::string("Optimized Implementation"), opt_benchmark,
-                         torch_benchmark / opt_benchmark},
+          FunctionTiming{std::string("'Optimized' Implementation"),
+                         opt_benchmark, torch_benchmark / opt_benchmark},
           FunctionTiming{std::string("PyTorch Implementation"), torch_benchmark,
                          torch_benchmark / torch_benchmark}},
       "Im2Col Kernel");
