@@ -12,8 +12,8 @@
 #define KERNEL_SIZE 16
 #define IMAGE_HEIGHT 512
 #define IMAGE_WIDTH 512
-#define CHAN 6
-#define BATCH 2
+#define CHAN 8
+#define BATCH 1
 
 namespace F = torch::nn::functional;
 torch::Tensor generate_input(int N, int C, int H, int W, int seed) {

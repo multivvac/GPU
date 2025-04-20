@@ -24,7 +24,7 @@ template <typename scalar_t>
  * @param in     Pointer to input image data (size: C x H x W)
  * @param out    Pointer to output matrix (size: (C x R x S) x (H_out x W_out))
  */
-__launch_bounds__(1024) __global__
+__launch_bounds__(THREADS_PER_BLOCK) __global__
     void im2col_kernel(size_t C, size_t H, size_t W, size_t K,
                        const scalar_t *__restrict__ in,
                        scalar_t *__restrict__ out) {
@@ -115,11 +115,11 @@ __global__ void im2col_2d_optimized_kernel(size_t C, size_t H, size_t W,
     for (size_t idx = threadIdx.x; idx < TILE_SIZE; idx += blockDim.x) {
       size_t tx = tile_x + idx;
       size_t ty = tile_y + idy;
+      size_t col_base = (channel * K * K) * H_out * W_out + ty * W_out + tx;
       if (tx < W_out && ty < H_out) {
         for (size_t p = 0; p < K; p++) {
           for (size_t q = 0; q < K; q++) {
-            data_col[(channel * K * K + p * K + q) * H_out * W_out +
-                     ty * W_out + tx] =
+            data_col[col_base + (p * K + q) * H_out * W_out] =
                 data_im_s[(idy + p) * W_shared + idx + q];
           }
         }
