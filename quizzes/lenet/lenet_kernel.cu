@@ -1,12 +1,10 @@
 #include "lenet_kernel.h"
 #include "utils/cuda.hpp"
 #include <ATen/Dispatch.h>
-#include <__clang_cuda_builtin_vars.h>
 #include <c10/core/DeviceType.h>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <torch/csrc/autograd/generated/variable_factories.h>
 #include <torch/nn/init.h>
 #include <torch/torch.h>
 __global__ void conv_forward_kernel() {};
