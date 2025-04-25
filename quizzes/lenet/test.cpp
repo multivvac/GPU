@@ -3,6 +3,7 @@
 #include "utils/benchmark.hpp"
 #include "utils/stat.hpp"
 #include "utils/validate.hpp"
+#include <ATen/core/TensorBody.h>
 #include <ATen/cuda/CUDAGeneratorImpl.h>
 #include <iostream>
 #include <torch/nn/functional/fold.h>
@@ -32,6 +33,11 @@ torch::Tensor im2col_baseline(torch::Tensor &data, size_t K) {
   return output;
 }
 
+torch::Tensor conv2d_im2col(torch::Tensor &data, size_t K) {
+  auto output = conv2d_im2col_cuda(data, K);
+  return output;
+}
+
 int test_im2col() {
   auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_WIDTH, 42);
   auto output = im2col_baseline(input, KERNEL_SIZE);
@@ -55,6 +61,13 @@ int test_im2col() {
     }
     return EXIT_FAILURE;
   }
+  return 0;
+}
+
+
+int test_conv2d() {
+  auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_WIDTH, 42);
+  auto output = conv2d_im2col(input, 6);
   return 0;
 }
 
