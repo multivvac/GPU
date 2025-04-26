@@ -16,6 +16,27 @@ Some information may be useful for theoretical calculations.
 | Bottleneck when?    | Moving lots of data                  | Performing lots of calculations          |
 | Optimized by        | Coalesced access, memory hierarchy   | Occupancy, instruction-level parallelism |
 
+### Effective Bandwidth
+
+$BW_{\text{Effective}} = \frac{(R_B + W_B)}{t \times 10^9}$
+
+| Symbol | Meaning |
+|:-------|:--------|
+| $BW_{\text{Effective}}$ | Effective bandwidth in units of GB/s |
+| $R_B$| Number of bytes read per kernel |
+| $W_B$| Number of bytes written per kernel |
+| $t$ | Elapsed time in seconds |
+
+### Computational Throughput
+
+$GFLOPS = \frac{Ops}{t \times 10^9}$
+
+| Symbol | Meaning |
+|:-------|:--------|
+| $GFLOPS$ | Giga-Floating-point Operations per second |
+| $Ops$ | Giga-Floating-point Operations |
+| $t$ | Elapsed time in seconds |
+
 ### C++ / CUDA Data Size Table
 
 | Data Type             | Size (Bytes) | Bit Width | Description / GPU Notes                          |
