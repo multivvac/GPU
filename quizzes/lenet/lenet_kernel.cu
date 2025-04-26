@@ -9,9 +9,6 @@
 #include <torch/torch.h>
 __global__ void conv_forward_kernel() {};
 
-#define KERNEL_1_SIZE 6
-#define KERNEL_1_IN_CHAN 6
-#define KERNEL_1_OUT_CHAN 6
 template <typename scalar_t>
 __constant__ scalar_t
     F[KERNEL_1_IN_CHAN * KERNEL_1_OUT_CHAN * KERNEL_1_SIZE * KERNEL_1_SIZE];
@@ -143,8 +140,8 @@ __global__ void conv2d_kernel(size_t C, size_t H, size_t W, size_t K,
   size_t H_out = H - K + 1;
   size_t W_out = W - K + 1;
 
-  size_t in_channel = blockIdx.z % KERNEL_1_OUT_CHAN;
-  size_t out_channel = blockIdx.z / KERNEL_1_OUT_CHAN;
+  size_t in_channel = blockIdx.z % KERNEL_1_IN_CHAN;
+  size_t out_channel = blockIdx.z / KERNEL_1_IN_CHAN;
 
   extern __shared__ unsigned char smem[];
   scalar_t *data_im_s = reinterpret_cast<scalar_t *>(smem);
@@ -262,7 +259,7 @@ torch::Tensor im2col_optimized_cuda(torch::Tensor &input, size_t K) {
   return output;
 };
 
-torch::Tensor conv2d_cuda(torch::Tensor &input, size_t K) {
+torch::Tensor conv2d_im2col_cuda(torch::Tensor &input, torch::Tensor &filter, size_t K) {
   auto N = input.size(0);
   auto C = input.size(1);
   auto H = input.size(2);
@@ -280,10 +277,6 @@ torch::Tensor conv2d_cuda(torch::Tensor &input, size_t K) {
   auto output =
       torch::zeros({N, KERNEL_1_OUT_CHAN, H_out, W_out},
                    torch::dtype(torch::kFloat32).device(torch::kCUDA));
-
-  auto filter = torch::nn::init::kaiming_uniform_(torch::zeros(
-      {KERNEL_1_OUT_CHAN, KERNEL_1_IN_CHAN, KERNEL_1_SIZE, KERNEL_1_SIZE},
-      torch::dtype(torch::kFloat32).device(torch::kCUDA)));
 
   for (size_t i = 0; i < N; i++) {
     AT_DISPATCH_FLOATING_TYPES_AND_HALF(

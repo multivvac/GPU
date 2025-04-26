@@ -33,11 +33,19 @@ torch::Tensor im2col_baseline(torch::Tensor &data, size_t K) {
   return output;
 }
 
-torch::Tensor conv2d_im2col(torch::Tensor &data, size_t K) {
-  auto output = conv2d_im2col_cuda(data, K);
+torch::Tensor conv2d_im2col(torch::Tensor &data, torch::Tensor &filter,
+                            size_t K) {
+  auto output = conv2d_im2col_cuda(data, filter, K);
   return output;
 }
 
+torch::Tensor conv2d_baseline(torch::Tensor &data, torch::Tensor &filter,
+                              size_t K) {
+  auto output =
+      F::conv2d(data, filter, F::Conv2dFuncOptions().stride(1).padding(0));
+  torch::cuda::synchronize();
+  return output;
+}
 int test_im2col() {
   auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_WIDTH, 42);
   auto output = im2col_baseline(input, KERNEL_SIZE);
@@ -64,10 +72,22 @@ int test_im2col() {
   return 0;
 }
 
-
 int test_conv2d() {
-  auto input = generate_input(BATCH, CHAN, IMAGE_HEIGHT, IMAGE_WIDTH, 42);
-  auto output = conv2d_im2col(input, 6);
+  auto input = generate_input(1, KERNEL_1_IN_CHAN, 28, 28, 42);
+  auto filter = torch::nn::init::kaiming_uniform_(torch::zeros(
+      {KERNEL_1_OUT_CHAN, KERNEL_1_IN_CHAN, KERNEL_1_SIZE, KERNEL_1_SIZE},
+      torch::dtype(torch::kFloat32).device(torch::kCUDA)));
+  auto output = conv2d_im2col(input, filter, KERNEL_1_SIZE);
+  auto baseline_output = conv2d_baseline(input, filter, KERNEL_1_SIZE);
+  auto errors =
+      verbose_allclose(baseline_output.flatten(), output.flatten(), 1e-5, 1e-5);
+  if (errors.size() > 0) {
+    std::cout << "found errors in conv2d kernel:\n";
+    for (auto &error : errors) {
+      std::cout << error << "\n";
+    }
+    return EXIT_FAILURE;
+  }
   return 0;
 }
 
@@ -77,6 +97,7 @@ int main(int argc, char *argv[]) {
   int status = 0;
 
   status |= test_im2col();
+  status |= test_conv2d();
 
   if (status == 0) {
     std::cout << "\n✅ All tests passed successfully!\n";
@@ -100,4 +121,22 @@ int main(int argc, char *argv[]) {
           FunctionTiming{std::string("PyTorch Implementation"), torch_benchmark,
                          torch_benchmark / torch_benchmark}},
       "Im2Col Kernel");
+
+  auto conv2d_input = generate_input(1, KERNEL_1_IN_CHAN, 28, 28, 42);
+  auto filter = torch::nn::init::kaiming_uniform_(torch::zeros(
+      {KERNEL_1_OUT_CHAN, KERNEL_1_IN_CHAN, KERNEL_1_SIZE, KERNEL_1_SIZE},
+      torch::dtype(torch::kFloat32).device(torch::kCUDA)));
+  auto conv2d_torch_benchmark = benchmark(
+      [&]() { conv2d_baseline(conv2d_input, filter, KERNEL_1_SIZE); });
+  auto conv2d_im2col_benchmark = benchmark(
+      [&]() { conv2d_im2col_cuda(conv2d_input, filter, KERNEL_1_SIZE); });
+  print_table(
+      std::vector<FunctionTiming>{
+          FunctionTiming{std::string("Im2Col Implementation"),
+                         conv2d_im2col_benchmark,
+                         conv2d_torch_benchmark / conv2d_im2col_benchmark},
+          FunctionTiming{std::string("PyTorch Implementation"),
+                         conv2d_torch_benchmark,
+                         conv2d_torch_benchmark / conv2d_torch_benchmark}},
+      "Conv2d Kernel");
 }
