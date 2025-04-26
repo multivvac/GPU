@@ -73,7 +73,8 @@ int test_im2col() {
 }
 
 int test_conv2d() {
-  auto input = generate_input(1, KERNEL_1_IN_CHAN, 28, 28, 42);
+  auto input =
+      generate_input(BATCH, KERNEL_1_IN_CHAN, IMAGE_WIDTH, IMAGE_HEIGHT, 42);
   auto filter = torch::nn::init::kaiming_uniform_(torch::zeros(
       {KERNEL_1_OUT_CHAN, KERNEL_1_IN_CHAN, KERNEL_1_SIZE, KERNEL_1_SIZE},
       torch::dtype(torch::kFloat32).device(torch::kCUDA)));
@@ -122,7 +123,8 @@ int main(int argc, char *argv[]) {
                          torch_benchmark / torch_benchmark}},
       "Im2Col Kernel");
 
-  auto conv2d_input = generate_input(1, KERNEL_1_IN_CHAN, 28, 28, 42);
+  auto conv2d_input =
+      generate_input(BATCH, KERNEL_1_IN_CHAN, IMAGE_WIDTH, IMAGE_HEIGHT, 42);
   auto filter = torch::nn::init::kaiming_uniform_(torch::zeros(
       {KERNEL_1_OUT_CHAN, KERNEL_1_IN_CHAN, KERNEL_1_SIZE, KERNEL_1_SIZE},
       torch::dtype(torch::kFloat32).device(torch::kCUDA)));
@@ -132,7 +134,7 @@ int main(int argc, char *argv[]) {
       [&]() { conv2d_im2col_cuda(conv2d_input, filter, KERNEL_1_SIZE); });
   print_table(
       std::vector<FunctionTiming>{
-          FunctionTiming{std::string("Im2Col Implementation"),
+          FunctionTiming{std::string("Naive Im2Col Implementation"),
                          conv2d_im2col_benchmark,
                          conv2d_torch_benchmark / conv2d_im2col_benchmark},
           FunctionTiming{std::string("PyTorch Implementation"),

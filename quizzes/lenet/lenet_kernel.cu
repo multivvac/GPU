@@ -140,8 +140,10 @@ __global__ void conv2d_kernel(size_t C, size_t H, size_t W, size_t K,
   size_t H_out = H - K + 1;
   size_t W_out = W - K + 1;
 
-  size_t in_channel = blockIdx.z % KERNEL_1_IN_CHAN;
-  size_t out_channel = blockIdx.z / KERNEL_1_IN_CHAN;
+  size_t nth_img = blockIdx.z / (KERNEL_1_IN_CHAN * KERNEL_1_OUT_CHAN);
+  size_t img_block = blockIdx.z % (KERNEL_1_IN_CHAN * KERNEL_1_OUT_CHAN);
+  size_t in_channel = img_block % KERNEL_1_IN_CHAN;
+  size_t out_channel = img_block / KERNEL_1_IN_CHAN;
 
   extern __shared__ unsigned char smem[];
   scalar_t *data_im_s = reinterpret_cast<scalar_t *>(smem);
@@ -160,7 +162,8 @@ __global__ void conv2d_kernel(size_t C, size_t H, size_t W, size_t K,
 
       if (imrow < H && imcol < W) {
         data_im_s[i + W_shared * j] =
-            data_im[in_channel * H * W + imrow * W + imcol];
+            data_im[nth_img * C * H * W + in_channel * H * W + imrow * W +
+                    imcol];
       } else {
         data_im_s[i + W_shared * j] = static_cast<scalar_t>(0);
       }
@@ -185,7 +188,8 @@ __global__ void conv2d_kernel(size_t C, size_t H, size_t W, size_t K,
                     data_im_s[(idy + p) * W_shared + idx + q];
           }
         }
-        atomicAdd(reinterpret_cast<float *>(&out[col]),
+        atomicAdd(reinterpret_cast<float *>(
+                      &out[nth_img * H_out * W_out * KERNEL_1_OUT_CHAN + col]),
                   static_cast<float>(psum));
       }
     }
@@ -259,7 +263,8 @@ torch::Tensor im2col_optimized_cuda(torch::Tensor &input, size_t K) {
   return output;
 };
 
-torch::Tensor conv2d_im2col_cuda(torch::Tensor &input, torch::Tensor &filter, size_t K) {
+torch::Tensor conv2d_im2col_cuda(torch::Tensor &input, torch::Tensor &filter,
+                                 size_t K) {
   auto N = input.size(0);
   auto C = input.size(1);
   auto H = input.size(2);
@@ -267,31 +272,27 @@ torch::Tensor conv2d_im2col_cuda(torch::Tensor &input, torch::Tensor &filter, si
 
   int64_t H_out = H - K + 1;
   int64_t W_out = W - K + 1;
-  int64_t H_unroll = C * K * K;
-  int64_t W_unroll = H_out * W_out;
-  auto blocks =
-      dim3((W_out + TILE_SIZE - 1) / TILE_SIZE,
-           (H_out + TILE_SIZE - 1) / TILE_SIZE, C * KERNEL_1_OUT_CHAN);
+  auto blocks = dim3((W_out + TILE_SIZE - 1) / TILE_SIZE,
+                     (H_out + TILE_SIZE - 1) / TILE_SIZE,
+                     KERNEL_1_IN_CHAN * KERNEL_1_OUT_CHAN * N);
   auto threads = dim3(std::min(32, TILE_SIZE), std::min(32, TILE_SIZE));
 
   auto output =
       torch::zeros({N, KERNEL_1_OUT_CHAN, H_out, W_out},
                    torch::dtype(torch::kFloat32).device(torch::kCUDA));
 
-  for (size_t i = 0; i < N; i++) {
-    AT_DISPATCH_FLOATING_TYPES_AND_HALF(
-        input.scalar_type(), "conv2d_kernel", [&] {
-          cudaMemcpyToSymbol(F<scalar_t>, filter.const_data_ptr<scalar_t>(),
-                             KERNEL_1_SIZE * KERNEL_1_SIZE * KERNEL_1_OUT_CHAN *
-                                 KERNEL_1_IN_CHAN * sizeof(scalar_t),
-                             0, cudaMemcpyDeviceToDevice);
-          conv2d_kernel<<<blocks, threads,
-                          (TILE_SIZE + K - 1) * (TILE_SIZE + K - 1) *
-                              sizeof(scalar_t)>>>(
-              C, H, W, K, input.const_data_ptr<scalar_t>() + i * C * H * W,
-              output.data_ptr<scalar_t>() + i * H_unroll * W_unroll);
-        });
-  }
+  AT_DISPATCH_FLOATING_TYPES_AND_HALF(
+      input.scalar_type(), "conv2d_kernel", [&] {
+        cudaMemcpyToSymbol(F<scalar_t>, filter.const_data_ptr<scalar_t>(),
+                           KERNEL_1_SIZE * KERNEL_1_SIZE * KERNEL_1_OUT_CHAN *
+                               KERNEL_1_IN_CHAN * sizeof(scalar_t),
+                           0, cudaMemcpyDeviceToDevice);
+        conv2d_kernel<<<blocks, threads,
+                        (TILE_SIZE + K - 1) * (TILE_SIZE + K - 1) *
+                            sizeof(scalar_t)>>>(
+            C, H, W, K, input.const_data_ptr<scalar_t>(),
+            output.data_ptr<scalar_t>());
+      });
   CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
   return output;
