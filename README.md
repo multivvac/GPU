@@ -1,6 +1,6 @@
 # GPU
 
-Hands-On GPU Learning
+CUDA Kernels
 
 ## Miscellaneous
 
