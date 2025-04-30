@@ -10,11 +10,11 @@ Some information may be useful for theoretical calculations.
 
 | Aspect              | Bandwidth                            | Throughput                              |
 |---------------------|--------------------------------------|------------------------------------------|
-| What it measures     | **Data transfer rate**               | **Compute or instruction rate**          |
+| Measurement     | Data transfer rate               | Compute or instruction rate         |
 | Unit                | GB/s                                 | FLOPS, operations/sec                    |
-| Related to          | **Memory system**                    | **ALUs / cores**                         |
-| Bottleneck when?    | Moving lots of data                  | Performing lots of calculations          |
-| Optimized by        | Coalesced access, memory hierarchy   | Occupancy, instruction-level parallelism |
+| Relation          | Memory system                    | ALUs / cores                         |
+| Bottleneck    | Data movement                  | Performing lots of calculations          |
+| Optimization direction        | Coalesced access, memory hierarchy   | Occupancy, instruction-level parallelism |
 
 ### Effective Bandwidth
 
